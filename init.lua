@@ -61,6 +61,7 @@ if mesecon.setting("luacontroller_print_behavior", "log")=="log" then
 		local sandbox = string_meta.__index
 		string_meta.__index = string -- Leave string sandbox temporarily
 		minetest.log("action", string.format("[async_controller] print(%s)", dump(param)))
+		
 		string_meta.__index = sandbox -- Restore string sandbox
 		return true
 	end
@@ -242,8 +243,8 @@ local function clean_and_weigh_digiline_message(msg, back_references, clean_and_
 end
 
 
--- itbl: Flat table of functions to run after sandbox cleanup, used to prevent various security hazards
-local function get_digiline_send(pos, itbl, send_warning, luac_id_prov, mesecon_queue, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
+-- itbl: Flat table of functions (or tables) to run after sandbox cleanup, used to prevent various security hazards
+local function get_digiline_send(pos, itbl, send_warning, luac_id, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
 	return function(channel, msg)
 		-- NOTE: This runs within string metatable sandbox, so don't *rely* on anything of the form (""):y
 		--        or via anything that could.
@@ -266,13 +267,10 @@ local function get_digiline_send(pos, itbl, send_warning, luac_id_prov, mesecon_
 		end
 
 		table.insert(itbl, {
-				function (ret)
-					-- Runs outside of string metatable sandbox
-					ret.mesecon_queue:add_action(ret.pos, "lc_digiline_relay", {ret.channel, ret.luac_id, ret.msg})
-				end
-			,{
-				luac_id=luac_id_prov,mesecon_queue=mesecon_queue,pos=pos,
-				msg=msg,channel=channel,	
+			function (ret)
+				ret.mesecon_queue:add_action(ret.pos, "lc_digiline_relay", {ret.channel, ret.luac_id, ret.msg})
+			end,{
+				luac_id=luac_id, pos=pos, msg=msg, channel=channel -- mesecon_queue gets automatically provided
 			}}
 		)
 		return true
@@ -291,7 +289,7 @@ local more_globals = {
 	safe_print = safe_print,
 }
 
-local function create_environment(pos, mem, event, itbl, send_warning, heat, heat_max, get_interrupt, get_digiline_send, safe_globals, luac_id, mesecon_queue, more_globals, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
+local function create_environment(pos, mem, event, itbl, async_env)
 	-- Gather variables for the environment
 	-- Create new library tables on each call to prevent one Luacontroller
 	-- from breaking a library and messing up other Luacontrollers.
@@ -299,11 +297,11 @@ local function create_environment(pos, mem, event, itbl, send_warning, heat, hea
 		pos = pos,
 		event = event,
 		mem = mem,
-		heat = heat,
-		heat_max = heat_max,
-		print = more_globals.safe_print,
-		interrupt = get_interrupt(pos, itbl, send_warning, mesecon_queue),
-		digiline_send = get_digiline_send(pos, itbl, send_warning, luac_id, mesecon_queue, chan_maxlen, maxlen, clean_and_weigh_digiline_message),
+		heat = async_env.heat,
+		heat_max = async_env.heat_max,
+		print = async_env.more_globals.safe_print,
+		interrupt = async_env.get_interrupt(pos, itbl, async_env.send_warning, async_env.mesecon_queue),
+		digiline_send = async_env.get_digiline_send(pos, itbl, async_env.send_warning, async_env.luac_id, async_env.chan_maxlen, async_env.maxlen, async_env.clean_and_weigh_digiline_message),
 		string = {
 			byte = string.byte,
 			char = string.char,
@@ -311,11 +309,11 @@ local function create_environment(pos, mem, event, itbl, send_warning, heat, hea
 			len = string.len,
 			lower = string.lower,
 			upper = string.upper,
-			rep = more_globals.safe_string_rep,
+			rep = async_env.more_globals.safe_string_rep,
 			reverse = string.reverse,
 			sub = string.sub,
-			find = more_globals.safe_string_find,
-			split = more_globals.safe_string_split,
+			find = async_env.more_globals.safe_string_find,
+			split = async_env.more_globals.safe_string_split,
 		},
 		math = {
 			abs = math.abs,
@@ -364,7 +362,7 @@ local function create_environment(pos, mem, event, itbl, send_warning, heat, hea
 	}
 	env._G = env
 
-	for _, name in pairs(safe_globals) do
+	for _, name in pairs(async_env.safe_globals) do
 		env[name] = _G[name]
 	end
 
@@ -424,9 +422,7 @@ local function save_memory(pos, meta, mem)
 	end
 end
 
-local function reset_formspec(meta, code, errmsg, pos)
-	local meta = meta
-	if meta==nil then meta=minetest.get_meta(pos) end
+local function reset_formspec(meta, code, errmsg)
 	meta:set_string("code", code)
 	meta:mark_as_private("code")
 	code = minetest.formspec_escape(code or "")
@@ -446,11 +442,64 @@ local function reset_meta(pos, code, errmsg)
 	reset_formspec(meta, code, errmsg)
 	meta:set_int("luac_id", math.random(1, 65535))
 end
+local function run_async(pos, mem, event, code, async_env)
+	local itbl = {}
+	local env = async_env.create_environment(pos, mem, event, itbl, async_env)
+	if not env then return false, "Env does not exist. Controller has been moved?", mem, pos end
 
+	local success, msg
+	-- Create the sandbox and execute code
+	local f
+	f, msg = async_env.create_sandbox(code, env, async_env.maxevents, async_env.timeout)
+	if not f then return false, msg, env.mem, pos end
+	-- Start string true sandboxing
+	local onetruestring = getmetatable("")
+	-- If a string sandbox is already up yet inconsistent, something is very wrong
+	assert(onetruestring.__index == string)
+	onetruestring.__index = env.string
+	success, msg = pcall(f)
+	onetruestring.__index = string
+	-- End string true sandboxing
+	if not success then return false, msg, env.mem, pos end
+	return false, "", env.mem, pos, itbl, async_env.warning
+end
 
--- Returns NOTHIINGGG yes this did break like one useless feature that logged errors into the console
--- run (as opposed to run_inner) is responsible for setting up meta according to this output
-	-- thats a lie, it's responsible for... oh god... don't look below 
+local function run_callback(ok, errmsg, mem, pos, itbl, warning)
+	local meta = minetest.get_meta(pos)
+	local code = meta:get_string("code")
+	if not ok and itbl ~= nil then
+		-- Execute deferred tasks
+		for _, v in ipairs(itbl) do
+			if type(v)~="table" then
+				local failure = v()
+				if failure then
+					ok=false
+					errmsg=failure
+				end
+			else
+				local func = v[1]
+				local args = v[2]
+				args.mesecon_queue=mesecon.queue
+				local failure = func(args)
+				if failure then
+					ok=false
+					errmsg=failure
+				end
+			end
+		end
+		ok=true
+		errmsg=warning
+	end
+
+	if not ok then
+		reset_meta(pos, code, errmsg)
+	else
+		reset_formspec(meta, code, errmsg)
+	end
+	save_memory(pos, minetest.get_meta(pos), mem)
+end
+
+-- run_inner is basically run now
 local function run_inner(pos, code, event)
 	local meta = minetest.get_meta(pos)
 	-- Note: These return success, presumably to avoid changing LC ID.
@@ -470,65 +519,26 @@ local function run_inner(pos, code, event)
 		maxevents=10000*10
 	end
 	-- *10 to make it not sneaky, the reason this was done is because it doesn't freeze the main game
-	local luac_id = minetest.get_meta(pos):get_int("luac_id")
+	local luac_id = meta:get_int("luac_id")
 	local chan_maxlen = mesecon.setting("luacontroller_digiline_channel_maxlen", 256)
 	local maxlen = mesecon.setting("luacontroller_digiline_maxlen", 50000)
 	-- Async hell begins
-	-- Ignore the function arguments, add more if needed
-	minetest.handle_async(function(pos, mem, event, code, create_environment, heat, heat_max, get_interrupt, get_digiline_send, safe_globals, create_sandbox, maxevents, timeout, luac_id, mesecon_queue, more_globals, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
-		local itbl = {}
-		local env = create_environment(pos, mem, event, itbl, send_warning, heat, heat_max, get_interrupt, get_digiline_send, safe_globals, luac_id, mesecon_queue, more_globals, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
-		if not env then return false, "Env does not exist. Controller has been moved?", mem ,pos end
 
-		local success, msg
-		-- Create the sandbox and execute code
-		local f
-		f, msg = create_sandbox(code, env, maxevents, timeout)
-		if not f then return false, msg, env.mem, pos end
-		-- Start string true sandboxing
-		local onetruestring = getmetatable("")
-		-- If a string sandbox is already up yet inconsistent, something is very wrong
-		assert(onetruestring.__index == string)
-		onetruestring.__index = env.string
-		success, msg = pcall(f)
-		onetruestring.__index = string
-		-- End string true sandboxing
-		if not success then return false, msg, env.mem, pos end
-		return false, "", env.mem, pos, itbl
-	end,function(ok,errmsg,mem, pos, itbl)
-		if not ok and itbl ~= nil then
-			-- Execute deferred tasks
-			for _, v in ipairs(itbl) do
-				if type(v)~="table" then
-					local failure = v()
-					if failure then
-						ok=false
-						errmsg=failure
-					end
-				else
-					v[2].mesecon_queue=mesecon.queue
-					local failure = v[1](v[2])
-					if failure then
-						ok=false
-						errmsg=failure
-					end
-				end
-			end
-			ok=true 
-			errmsg=warning
-		end
-		if not ok then
-			reset_meta(pos, code, errmsg)
-		else
-			reset_formspec(nil,code, errmsg, pos)
-		end
-		save_memory(pos, meta, mem)
-	end,pos,mem,event,code, create_environment, heat, mesecon.setting("overheat_max", 20),get_interrupt, get_digiline_send, safe_globals, create_sandbox, maxevents, timeout, luac_id, mesecon.queue, more_globals, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
+	local async_env = {
+		create_environment=create_environment,heat=heat, heat_max=mesecon.setting("overheat_max", 20),
+		get_interrupt=get_interrupt, get_digiline_send=get_digiline_send, safe_globals=safe_globals,
+		create_sandbox=create_sandbox, maxevents=maxevents, timeout=timeout, luac_id=luac_id,
+		more_globals=more_globals,chan_maxlen=chan_maxlen, maxlen=maxlen, 	warning=warning,
+		clean_and_weigh_digiline_message=clean_and_weigh_digiline_message,send_warning=send_warning,
+	}
+
+	minetest.handle_async(run_async,run_callback, pos, mem, event, code, async_env)
 end
 
 
 
 -- literally run_inner now, no you won't get the values back this is async :p
+-- as i've said before this only broke like one thing
 local function run(pos, event)
 	local meta = minetest.get_meta(pos)
 	local code = meta:get_string("code")

@@ -20,8 +20,6 @@ The only setting that this adds is **async_controller.maxevents**, other setting
 # TODOs (in order):
 - Better print (maybe do what mooncontroller did)
 - Testing
-- Beautify code (don't have functions with 50 arguments, use a table or something)
-- Fix that one setting bug (the setting for maxevents doesn't show up :/)
 - Docs
 - Support for re-programming the luacontroller with digilines
 
