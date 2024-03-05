@@ -1,0 +1,2 @@
+[async_controller]
+async_controller.maxevents (Async controller execution time limit) int 100000

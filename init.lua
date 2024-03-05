@@ -465,7 +465,10 @@ local function run_inner(pos, code, event)
 		warning = "Warning: " .. str
 	end
 	local heat = mesecon.get_heat(pos)
-	local maxevents= mesecon.setting("async_controller_maxevents", 10000*10) 
+	local maxevents = minetest.settings:get("async_controller.maxevents")
+	if maxevents==nil then
+		maxevents=10000*10
+	end
 	-- *10 to make it not sneaky, the reason this was done is because it doesn't freeze the main game
 	local luac_id = minetest.get_meta(pos):get_int("luac_id")
 	local chan_maxlen = mesecon.setting("luacontroller_digiline_channel_maxlen", 256)
