@@ -608,7 +608,13 @@ end
 
 local function set_program(pos, code)
 	reset_meta(pos, code)
-	return run(pos, {type="program"})
+
+	if minetest.get_node(pos).name==BASENAME then 
+		run(pos, {type="program"})
+	elseif minetest.get_node(pos).name==BASENAME.."_burnt" then
+		minetest.swap_node(pos, {name=BASENAME})
+		run(pos, {type="program"})
+	end
 end
 
 local function on_receive_fields(pos, _, fields, sender)
@@ -676,6 +682,7 @@ minetest.register_node(BASENAME .. "_burnt", {
 		"jeija_microcontroller_sides.png",
 		"jeija_microcontroller_sides.png"
 	},
+	description = "Burnt async controller (you hacker you!)",
 	inventory_image = "async_controller_burnt_top.png",
 	is_burnt = true,
 	paramtype = "light",
@@ -703,3 +710,11 @@ minetest.register_craft({
 		{wire, wire, ''},
 	}
 })
+
+----------------------------------------
+-- Register suppport for  fancy tools --
+----------------------------------------
+if metatool then
+	MP = minetest.get_modpath("async_controller")
+	dofile(MP.."/tool.lua")
+end

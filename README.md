@@ -17,9 +17,13 @@ The only setting that this adds is **async_controller.maxevents**, other setting
 
 *Also note: async_controller ignores the* `luacontroller_string_rep_max` *setting, and instead uses the default value of 64000*
 
+# Async controller metatool
+
+This was done because metatool didn't allow me to add support for my node to the luatool
+
+It's basically a copy of the luatool except **it works in machines** without needing the server priv
+
 # TODOs (in order):
 - Better print (maybe do what mooncontroller did)
-- Testing
-- Docs
 - Support for re-programming the luacontroller with digilines
 

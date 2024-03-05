@@ -1,4 +1,0 @@
-# textdomain: mesecons_luacontroller
-
-### init.lua ###
-Luacontroller=
