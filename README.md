@@ -31,6 +31,15 @@ for i=1,1000 do
     digiline_send("p","retract")
 end
 ```
-i know this is kinda digistuffs fault but its what makes pistons amazing so
+i know this is kinda digistuffs fault but... yeah no bad idea to just let the luac send literally tousands of digiline messages per event...
 - Ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone)
 - more testing (maybe)
+
+# License
+
+Code:
+- LGPLv3
+
+Media:
+- textures/jeija_luac*
+- CC-BY-SA 3.0 https://github.com/minetest-mods/mesecons/tree/master/mesecons_luacontroller/textures
