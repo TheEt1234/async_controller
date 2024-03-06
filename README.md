@@ -6,6 +6,13 @@ Fork of [mesecons_luacontroller](https://github.com/minetest-mods/mesecons/tree/
 
 This means that whatever is inside the sandbox won't freeze the server, so we can get away with giving the luacontroller more *power*
 
+### i don't know if this is important to mention but
+the behaviour of 
+```lua
+digiline_send("womp","blomp")
+error("no you aint sending")
+```
+is different in the async controller (it sends the message, the normal luacontroller doesn't)
 # Configuration
 **async_controller.maxevents**
 

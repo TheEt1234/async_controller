@@ -125,7 +125,21 @@ interrupt(1)
 modify_self("modify_self('b')")
 ```
 
-expected result (code) *no digiline/program events*:
+expected result (code):
 ```
 b
 ```
+## 8) digiline sending limits
+
+setup:
+- 1) Place a pipeworks autocrafter with the channel "autocrafter"
+- 2) Put in a recipe and the required amount of nodes for it
+code:
+```lua
+for i=1,1000 do
+    digiline_send("autocrafter","single")
+end
+```
+
+expected result:
+- The autocrafter should have crafted only `async_controller.max_digiline_messages_per_event` (or `150`, that's the default) items
