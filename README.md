@@ -21,7 +21,7 @@ The only setting that this adds is **async_controller.maxevents**, other setting
 
 This was done because metatool didn't allow me to add support for my node to the luatool
 
-It's basically a copy of the luatool except **it works in machines** without needing the server priv
+It's basically a copy of the luatool, does not work in machines 
 
 # TODOs (in order):
 - Better print (maybe do what mooncontroller did)
