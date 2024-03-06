@@ -1,6 +1,6 @@
 # "" Tests ""
 
-I am too lazy to do unit tests, doing it the old way works i think
+I am too lazy to do automated unit tests, doing it the manual way works i think
 
 ## 1) doesn't light the thread on fire
 code:
@@ -39,7 +39,7 @@ code:
 ```lua
 interrupt(0.5)
 if event.type=="interrupt" then
-    error("it worked")
+    print("it worked")
 end
 ```
 expected result:
@@ -58,7 +58,7 @@ code:
 - async controller 2:
     ```lua
     if event.type=="digiline" then
-        error(event.channel.." "..event.msg)
+        print(event.channel.." "..event.msg)
 
     end
     ```
@@ -68,3 +68,24 @@ expected result:
 ```
     (load):2: hello world
 ```
+
+## 6) Printing
+code:
+```lua
+print("Hi world")
+```
+expected result:
+```
+hi world
+```
+
+code:
+```lua
+print("Hi void")
+clearterm()
+```
+expected result:
+```
+
+```
+(yes nothing)

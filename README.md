@@ -24,7 +24,6 @@ This was done because metatool didn't allow me to add support for my node to the
 It's basically a copy of the luatool, does not work in machines 
 
 # TODOs:
-- Better print (maybe do what mooncontroller did)
 - Support for re-programming the luacontroller with digilines
 - Ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone)
 - more testing (maybe)

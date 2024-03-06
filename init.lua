@@ -34,6 +34,7 @@ local BASENAME = "async_controller:controller"
 
 
 
+
 -----------------
 -- Overheating --
 -----------------
@@ -45,7 +46,7 @@ local function burn_controller(pos)
 end
 
 local function overheat(pos)
-	if mesecon.do_overheat(pos) then -- If too hot
+	if mesecon.do_overheat(pos) then -- This code is responsible for increasing the heat of the luacontroller AND checking if it's overheated, how elegant
 		burn_controller(pos)
 		return true
 	end
@@ -54,19 +55,43 @@ end
 -------------------------
 -- Parsing and running --
 -------------------------
-local safe_print
-if mesecon.setting("luacontroller_print_behavior", "log")=="log" then
-	function safe_print(param)
+local function get_clearterm(pos,itbl)
+	return function()
+		table.insert(itbl,{
+			function(ret) ret.get_meta(ret.pos):set_string("print","") end,
+			{
+				pos=pos
+			}
+		})
+	end
+end
+
+local function get_safe_print(pos, itbl) -- print length is limited by mem hehe
+	return function(text_to_print)
 		local string_meta = getmetatable("")
 		local sandbox = string_meta.__index
 		string_meta.__index = string -- Leave string sandbox temporarily
-		minetest.log("action", string.format("[async_controller] print(%s)", dump(param)))
-		
+		-- i get why that wasn't sandboxed now... i couldnt do print(_G) because "string.find: 'plain' (fourth parameter) must always be true in a Luacontroller"
+		if type(text_to_print)~="string" then 
+			text_to_print=dump(text_to_print) -- if ya print too much tables ya time out
+		end
+		if text_to_print~=nil then
+			table.insert(itbl,{
+				function(ret)
+					local meta = ret.get_meta(ret.pos)
+					local oldtext = meta:get_string("print")
+					if oldtext==nil then oldtext="" end
+					local newtext=string.sub(oldtext.."\n"..ret.text_to_print,-50000,-1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
+					meta:set_string("print",newtext)
+				end,{
+					text_to_print=text_to_print,
+					pos=pos,
+				}
+			}
+		)
 		string_meta.__index = sandbox -- Restore string sandbox
-		return true
+		end
 	end
-else
-	function safe_print(_) return false end
 end
 
 local function safe_date()
@@ -242,7 +267,6 @@ local function clean_and_weigh_digiline_message(msg, back_references, clean_and_
 	end
 end
 
-
 -- itbl: Flat table of functions (or tables) to run after sandbox cleanup, used to prevent various security hazards
 local function get_digiline_send(pos, itbl, send_warning, luac_id, chan_maxlen, maxlen, clean_and_weigh_digiline_message)
 	return function(channel, msg)
@@ -286,7 +310,8 @@ local more_globals = {
 	safe_string_rep = safe_string_rep,
 	safe_string_find = safe_string_find,
 	safe_string_split = safe_string_split,
-	safe_print = safe_print,
+	get_safe_print = get_safe_print,
+	get_clearterm = get_clearterm
 }
 
 local function create_environment(pos, mem, event, itbl, async_env, send_warning)
@@ -299,7 +324,8 @@ local function create_environment(pos, mem, event, itbl, async_env, send_warning
 		mem = mem,
 		heat = async_env.heat,
 		heat_max = async_env.heat_max,
-		print = async_env.more_globals.safe_print,
+		print = async_env.more_globals.get_safe_print(pos, itbl),
+		clearterm = async_env.more_globals.get_clearterm(pos, itbl),
 		interrupt = async_env.get_interrupt(pos, itbl, send_warning, async_env.mesecon_queue),
 		digiline_send = async_env.get_digiline_send(pos, itbl, send_warning, async_env.luac_id, async_env.chan_maxlen, async_env.maxlen, async_env.clean_and_weigh_digiline_message),
 		string = {
@@ -421,12 +447,29 @@ local function save_memory(pos, meta, mem)
 		burn_controller(pos)
 	end
 end
-
+local function print_log_formspec(meta)
+	local print_log=minetest.formspec_escape(meta:get_string("print")) 
+	if print_log==nil then print_log="" end -- why do i have to do all of this to the size.... whatever
+	meta:set_string("formspec", "size[15,12]" -- real coordinates size is cursed... so i have to trick the user into believing that the background made the editor formspec bigger
+		.."real_coordinates[true]"
+		.."style_type[label,textarea;font=mono;bgcolor=black;textcolor=white]"
+		.."textarea[0,0;14.9,12;;;"..print_log.."]"
+		.."tabheader[0,0;tab;Editor,Print log;2]"
+		)
+end
 local function reset_formspec(meta, code, errmsg)
-	meta:set_string("code", code)
-	meta:mark_as_private("code")
-	code = minetest.formspec_escape(code or "")
-	errmsg = minetest.formspec_escape(tostring(errmsg or ""))
+	local code=code
+	local errmsg=errmsg
+	if code~=nil then
+		meta:set_string("code", code)
+		meta:mark_as_private("code")
+		code = minetest.formspec_escape(code or "")
+		errmsg = minetest.formspec_escape(tostring(errmsg or ""))
+	else
+		-- used when switching tabs
+		code=minetest.formspec_escape(meta:get_string("code") or "")
+		errmsg=""
+	end
 	meta:set_string("formspec", "size[12,10]"
 		.."style_type[label,textarea;font=mono]"
 		.."background[-0.2,-0.25;12.4,10.75;jeija_luac_background.png]"
@@ -434,6 +477,7 @@ local function reset_formspec(meta, code, errmsg)
 		.."textarea[0.2,0.2;12.2,9.5;code;;"..code.."]"
 		.."image_button[4.75,8.75;2.5,1;jeija_luac_runbutton.png;program;]"
 		.."image_button_exit[11.72,-0.25;0.425,0.4;jeija_close_window.png;exit;]"
+		.."tabheader[0,0;tab;Editor,Print log;1]"
 		)
 end
 
@@ -441,8 +485,9 @@ local function reset_meta(pos, code, errmsg)
 	local meta = minetest.get_meta(pos)
 	reset_formspec(meta, code, errmsg)
 	meta:set_int("luac_id", math.random(1, 65535))
+	meta:set_string("print","")
 end
-local function run_async(pos, mem, event, code, async_env)
+local function run_async(pos, mem, event, code, async_env) -- this is the thing that executes it, has async enviroment
 
 	-- 'Last warning' label.
 	local warning = ""
@@ -473,7 +518,7 @@ local function run_async(pos, mem, event, code, async_env)
 	return false,  warning, env.mem, pos, itbl, {start_time, end_time}
 end
 
-local function run_callback(ok, errmsg, mem, pos, itbl, time)
+local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thing that gets called AFTER the luac executes
 	local meta = minetest.get_meta(pos)
 	local code = meta:get_string("code")
 	local time_took = math.abs(time[1]-time[2])
@@ -490,6 +535,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time)
 				local func = v[1]
 				local args = v[2]
 				args.mesecon_queue=mesecon.queue
+				args.get_meta=minetest.get_meta
 				local failure = func(args)
 				if failure then
 					ok=false
@@ -500,7 +546,14 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time)
 		ok=true
 		errmsg=errmsg
 	end
-
+	if errmsg~=nil and errmsg~="" then
+		if type(errmsg)~="string" then errmsg=dump(errmsg) end
+		local meta = minetest.get_meta(pos)
+		local oldtext = meta:get_string("print")
+		if oldtext==nil then oldtext="" end
+		local newtext=string.sub(oldtext.."\nErr: "..errmsg,-50000,-1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
+		meta:set_string("print",newtext)
+	end
 	if not ok then
 		reset_meta(pos, code, errmsg)
 	else
@@ -510,7 +563,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time)
 end
 
 -- run_inner is basically run now
-local function run_inner(pos, code, event)
+local function run_inner(pos, code, event) -- this is the thing that gets called BEFORE it executes
 	local meta = minetest.get_meta(pos)
 	-- Note: These return success, presumably to avoid changing LC ID.
 	if overheat(pos) then return true, "" end
@@ -612,6 +665,7 @@ local function get_program(pos)
 end
 
 local function set_program(pos, code)
+	
 	reset_meta(pos, code)
 
 	if minetest.get_node(pos).name==BASENAME then 
@@ -623,15 +677,22 @@ local function set_program(pos, code)
 end
 
 local function on_receive_fields(pos, _, fields, sender)
-	if not fields.program then
-		return
-	end
 	local name = sender:get_player_name()
 	if minetest.is_protected(pos, name) and not minetest.check_player_privs(name, {protection_bypass=true}) then
 		minetest.record_protection_violation(pos, name)
 		return
 	end
-	set_program(pos, fields.code)
+	if fields.program then
+		set_program(pos, fields.code)
+	elseif fields.tab then
+		if fields.tab=="1" then
+			reset_formspec(minetest.get_meta(pos), nil, nil)
+		elseif fields.tab=="2" then
+			print_log_formspec(minetest.get_meta(pos))
+		end
+	else
+		return
+	end
 end
 
 -- Node registration
