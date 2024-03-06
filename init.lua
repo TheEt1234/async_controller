@@ -289,7 +289,7 @@ local more_globals = {
 	safe_print = safe_print,
 }
 
-local function create_environment(pos, mem, event, itbl, async_env)
+local function create_environment(pos, mem, event, itbl, async_env, send_warning)
 	-- Gather variables for the environment
 	-- Create new library tables on each call to prevent one Luacontroller
 	-- from breaking a library and messing up other Luacontrollers.
@@ -300,8 +300,8 @@ local function create_environment(pos, mem, event, itbl, async_env)
 		heat = async_env.heat,
 		heat_max = async_env.heat_max,
 		print = async_env.more_globals.safe_print,
-		interrupt = async_env.get_interrupt(pos, itbl, async_env.send_warning, async_env.mesecon_queue),
-		digiline_send = async_env.get_digiline_send(pos, itbl, async_env.send_warning, async_env.luac_id, async_env.chan_maxlen, async_env.maxlen, async_env.clean_and_weigh_digiline_message),
+		interrupt = async_env.get_interrupt(pos, itbl, send_warning, async_env.mesecon_queue),
+		digiline_send = async_env.get_digiline_send(pos, itbl, send_warning, async_env.luac_id, async_env.chan_maxlen, async_env.maxlen, async_env.clean_and_weigh_digiline_message),
 		string = {
 			byte = string.byte,
 			char = string.char,
@@ -443,15 +443,23 @@ local function reset_meta(pos, code, errmsg)
 	meta:set_int("luac_id", math.random(1, 65535))
 end
 local function run_async(pos, mem, event, code, async_env)
+
+	-- 'Last warning' label.
+	local warning = ""
+	local function send_warning(str)
+		warning = "Warning: " .. str
+	end
+
 	local itbl = {}
-	local env = async_env.create_environment(pos, mem, event, itbl, async_env)
-	if not env then return false, "Env does not exist. Controller has been moved?", mem, pos end
+	local start_time=minetest.get_us_time()
+	local env = async_env.create_environment(pos, mem, event, itbl, async_env, send_warning)
+	if not env then return false, "Env does not exist. Controller has been moved?", mem, pos, itbl, {start_time, minetest.get_us_time()} end
 
 	local success, msg
 	-- Create the sandbox and execute code
 	local f
 	f, msg = async_env.create_sandbox(code, env, async_env.maxevents, async_env.timeout)
-	if not f then return false, msg, env.mem, pos end
+	if not f then return false, msg, env.mem, pos, itbl, {start_time, minetest.get_us_time()} end
 	-- Start string true sandboxing
 	local onetruestring = getmetatable("")
 	-- If a string sandbox is already up yet inconsistent, something is very wrong
@@ -459,14 +467,16 @@ local function run_async(pos, mem, event, code, async_env)
 	onetruestring.__index = env.string
 	success, msg = pcall(f)
 	onetruestring.__index = string
+	local end_time=minetest.get_us_time()
 	-- End string true sandboxing
-	if not success then return false, msg, env.mem, pos end
-	return false, "", env.mem, pos, itbl, async_env.warning
+	if not success then return false, msg, env.mem, pos, itbl, {start_time, end_time}  end
+	return false,  warning, env.mem, pos, itbl, {start_time, end_time}
 end
 
-local function run_callback(ok, errmsg, mem, pos, itbl, warning)
+local function run_callback(ok, errmsg, mem, pos, itbl, time)
 	local meta = minetest.get_meta(pos)
 	local code = meta:get_string("code")
+	local time_took = math.abs(time[1]-time[2])
 	if not ok and itbl ~= nil then
 		-- Execute deferred tasks
 		for _, v in ipairs(itbl) do
@@ -488,7 +498,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, warning)
 			end
 		end
 		ok=true
-		errmsg=warning
+		errmsg=errmsg
 	end
 
 	if not ok then
@@ -508,11 +518,6 @@ local function run_inner(pos, code, event)
 	-- Load mem from meta
 	local mem  = load_memory(meta)
 
-	-- 'Last warning' label.
-	local warning = ""
-	local function send_warning(str)
-		warning = "Warning: " .. str
-	end
 	local heat = mesecon.get_heat(pos)
 	local maxevents = minetest.settings:get("async_controller.maxevents")
 	if maxevents==nil then
@@ -529,7 +534,7 @@ local function run_inner(pos, code, event)
 		get_interrupt=get_interrupt, get_digiline_send=get_digiline_send, safe_globals=safe_globals,
 		create_sandbox=create_sandbox, maxevents=maxevents, timeout=timeout, luac_id=luac_id,
 		more_globals=more_globals,chan_maxlen=chan_maxlen, maxlen=maxlen, 	warning=warning,
-		clean_and_weigh_digiline_message=clean_and_weigh_digiline_message,send_warning=send_warning,
+		clean_and_weigh_digiline_message=clean_and_weigh_digiline_message,
 	}
 
 	minetest.handle_async(run_async,run_callback, pos, mem, event, code, async_env)
