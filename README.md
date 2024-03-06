@@ -12,7 +12,11 @@ the behaviour of
 digiline_send("womp","blomp")
 error("no you aint sending")
 ```
-is different in the async controller (it sends the message, the normal luacontroller doesn't)
+is different in the async controller (it sends the message, the normal luacontroller doesn't, this could be easily changed `but it's way more convenient having it this way`)
+
+If this results in some kind of lag exploit then please make an issue
+
+*or if you are sure that it's fine, make an issue as well so i can remove this segment from the readme and move it to docs*
 # Configuration
 **async_controller.maxevents**
 
