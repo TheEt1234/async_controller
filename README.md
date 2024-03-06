@@ -41,7 +41,7 @@ This was done because metatool didn't allow me to add support for my node to the
 It's basically a copy of the luatool, does not work in machines 
 
 # TODOs
-- Ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone)
+- Sandbox ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone, or maybe make the maximum amount of threads running at the same time be 1)
 - more testing (maybe)
 
 # License
