@@ -15,3 +15,4 @@ standard luacontroller enviroment but...
 - makes an error to stop any more execution
 # Notes
 - You are forced to use lightweight interrupts (so no iid, but you can `interrupt(0)`)
+- You can't send 2 000 messages at that digistuff noteblock, *by default* it will only send 150 per event

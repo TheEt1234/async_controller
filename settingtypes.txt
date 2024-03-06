@@ -1,2 +1,3 @@
 [async_controller]
 async_controller.maxevents (Async controller execution time limit) int 100000
+async_controller.max_digiline_messages_per_event (Maximum amount of digilines messages per event) int 150

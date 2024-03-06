@@ -13,8 +13,12 @@ This means that whatever is inside the sandbox won't freeze the server, so we ca
 - **By default, maxevents (the setting dictating timeouts) is configured to be *10* times larger than default**
 
 # Configuration
-The only setting that this adds is **async_controller.maxevents**, other settings are re-used from the luacontroller
-
+**async_controller.maxevents**
+    - "how many things can this luacontroller execute before timing out"
+    - By default it's set to ***10 times*** the normal luacontroller's limit (because the sandbox doesn't freeze the server)
+**async_controller.max_digiline_messages_per_event**
+    - "how many digiline messages can this luacontroller send per event"
+    - default is 150, (that's less than what a default luacontroller can pull off) 
 *Also note: async_controller ignores the* `luacontroller_string_rep_max` *setting, and instead uses the default value of 64000*
 
 # Async controller metatool
@@ -24,14 +28,6 @@ This was done because metatool didn't allow me to add support for my node to the
 It's basically a copy of the luatool, does not work in machines 
 
 # TODOs
-- fix the ability to just do
-```lua
-for i=1,1000 do
-    digiline_send("p","extend")
-    digiline_send("p","retract")
-end
-```
-i know this is kinda digistuffs fault but... yeah no bad idea to just let the luac send literally tousands of digiline messages per event...
 - Ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone)
 - more testing (maybe)
 

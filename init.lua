@@ -29,7 +29,10 @@
 
 
 local S = minetest.get_translator(minetest.get_current_modname())
-
+local max_digi_messages_per_event = tonumber(minetest.settings:get("async_controller.max_digiline_messages_per_event"))
+if max_digi_messages_per_event==nil then
+	max_digi_messages_per_event=150
+end
 local BASENAME = "async_controller:controller"
 
 
@@ -317,6 +320,7 @@ local function get_digiline_send(pos, itbl, send_warning, luac_id, chan_maxlen, 
 				ret.mesecon_queue:add_action(ret.pos, "lc_digiline_relay", {ret.channel, ret.luac_id, ret.msg})
 			end,{
 				luac_id=luac_id, pos=pos, msg=msg, channel=channel -- mesecon_queue gets automatically provided
+				,is_digiline=true
 			}}
 		)
 		return true
@@ -551,6 +555,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	local meta = minetest.get_meta(pos)
 	local code = meta:get_string("code")
 	local time_took = math.abs(time[1]-time[2])
+	local digiline_sends=0
 	if not ok and itbl ~= nil then
 		-- Execute deferred tasks
 		for _, v in ipairs(itbl) do
@@ -563,13 +568,18 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 			else
 				local func = v[1]
 				local args = v[2]
-				args.mesecon_queue=mesecon.queue
-				args.get_meta=minetest.get_meta
-				args.reset_formspec=reset_formspec
-				local failure = func(args)
-				if failure then
-					ok=false
-					errmsg=failure
+				if args.is_digiline then
+					digiline_sends=digiline_sends+1
+				end
+				if args.is_digiline==false or digiline_sends<=max_digi_messages_per_event then
+					args.mesecon_queue=mesecon.queue
+					args.get_meta=minetest.get_meta
+					args.reset_formspec=reset_formspec
+					local failure = func(args)
+					if failure then
+						ok=false
+						errmsg=failure
+					end
 				end
 			end
 		end
@@ -596,7 +606,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	save_memory(pos, minetest.get_meta(pos), mem)
 end
 
--- run_inner is basically run now
+
 local function run_inner(pos, code, event) -- this is the thing that gets called BEFORE it executes
 	local meta = minetest.get_meta(pos)
 	-- Note: These return success, presumably to avoid changing LC ID.
@@ -606,11 +616,13 @@ local function run_inner(pos, code, event) -- this is the thing that gets called
 	local mem  = load_memory(meta)
 
 	local heat = mesecon.get_heat(pos)
-	local maxevents = minetest.settings:get("async_controller.maxevents")
+	local maxevents = tonumber(minetest.settings:get("async_controller.maxevents"))
 	if maxevents==nil then
+		-- *10 to make it not sneaky
+		-- the reason this was done is because it doesn't freeze the main game
 		maxevents=10000*10
 	end
-	-- *10 to make it not sneaky, the reason this was done is because it doesn't freeze the main game
+
 	local luac_id = meta:get_int("luac_id")
 	local chan_maxlen = mesecon.setting("luacontroller_digiline_channel_maxlen", 256)
 	local maxlen = mesecon.setting("luacontroller_digiline_maxlen", 50000)
@@ -628,9 +640,7 @@ local function run_inner(pos, code, event) -- this is the thing that gets called
 end
 
 
-
--- literally run_inner now, no you won't get the values back this is async :p
--- as i've said before this only broke like one thing
+-- run_inner = run basically
 local function run(pos, event)
 	local meta = minetest.get_meta(pos)
 	local code = meta:get_string("code")
