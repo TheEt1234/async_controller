@@ -55,7 +55,29 @@ end
 -------------------------
 -- Parsing and running --
 -------------------------
-local function get_clearterm(pos,itbl)
+
+
+local function get_modify_self(pos, itbl, send_warning)
+	return function(code)
+		if type(code)~="string" then send_warning("Code in modify_self is the wrong type!") return end
+		if #code>=50000 then send_warning("Code in modify_self is too large!") return end
+		table.insert(itbl,{
+			function(ret)
+				local meta = ret.get_meta(ret.pos)
+				ret.reset_formspec(meta,ret.code)
+				meta:set_int("luac_id", math.random(1, 65535))
+				meta:set_string("print","")
+				meta:set_int("do_not_modify_more_pls",1)
+			end,
+			{
+				pos=pos,code=code
+			}
+		})
+		error("Changing code... (don't worry about it :p)",2)
+	end
+end
+
+local function get_clearterm(pos, itbl)
 	return function()
 		table.insert(itbl,{
 			function(ret) ret.get_meta(ret.pos):set_string("print","") end,
@@ -66,7 +88,7 @@ local function get_clearterm(pos,itbl)
 	end
 end
 
-local function get_safe_print(pos, itbl) -- print length is limited by mem hehe
+local function get_safe_print(pos, itbl)
 	return function(text_to_print)
 		local string_meta = getmetatable("")
 		local sandbox = string_meta.__index
@@ -311,7 +333,8 @@ local more_globals = {
 	safe_string_find = safe_string_find,
 	safe_string_split = safe_string_split,
 	get_safe_print = get_safe_print,
-	get_clearterm = get_clearterm
+	get_clearterm = get_clearterm,
+	get_modify_self = get_modify_self
 }
 
 local function create_environment(pos, mem, event, itbl, async_env, send_warning)
@@ -326,6 +349,7 @@ local function create_environment(pos, mem, event, itbl, async_env, send_warning
 		heat_max = async_env.heat_max,
 		print = async_env.more_globals.get_safe_print(pos, itbl),
 		clearterm = async_env.more_globals.get_clearterm(pos, itbl),
+		modify_self = async_env.more_globals.get_modify_self(pos, itbl, send_warning),
 		interrupt = async_env.get_interrupt(pos, itbl, send_warning, async_env.mesecon_queue),
 		digiline_send = async_env.get_digiline_send(pos, itbl, send_warning, async_env.luac_id, async_env.chan_maxlen, async_env.maxlen, async_env.clean_and_weigh_digiline_message),
 		string = {
@@ -470,15 +494,20 @@ local function reset_formspec(meta, code, errmsg)
 		code=minetest.formspec_escape(meta:get_string("code") or "")
 		errmsg=""
 	end
-	meta:set_string("formspec", "size[12,10]"
-		.."style_type[label,textarea;font=mono]"
-		.."background[-0.2,-0.25;12.4,10.75;jeija_luac_background.png]"
-		.."label[0.1,8.3;"..errmsg.."]"
-		.."textarea[0.2,0.2;12.2,9.5;code;;"..code.."]"
-		.."image_button[4.75,8.75;2.5,1;jeija_luac_runbutton.png;program;]"
-		.."image_button_exit[11.72,-0.25;0.425,0.4;jeija_close_window.png;exit;]"
-		.."tabheader[0,0;tab;Editor,Print log;1]"
+	local state=meta:get_string("state")
+	if state=="editor" or state==nil or state=="" then
+		meta:set_string("formspec", "size[12,10]"
+			.."style_type[label,textarea;font=mono]"
+			.."background[-0.2,-0.25;12.4,10.75;jeija_luac_background.png]"
+			.."label[0.1,8.3;"..errmsg.."]"
+			.."textarea[0.2,0.2;12.2,9.5;code;;"..code.."]"
+			.."image_button[4.75,8.75;2.5,1;jeija_luac_runbutton.png;program;]"
+			.."image_button_exit[11.72,-0.25;0.425,0.4;jeija_close_window.png;exit;]"
+			.."tabheader[0,0;tab;Editor,Print log;1]"
 		)
+	elseif state=="print_log" then
+		print_log_formspec(meta)
+	end
 end
 
 local function reset_meta(pos, code, errmsg)
@@ -536,6 +565,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 				local args = v[2]
 				args.mesecon_queue=mesecon.queue
 				args.get_meta=minetest.get_meta
+				args.reset_formspec=reset_formspec
 				local failure = func(args)
 				if failure then
 					ok=false
@@ -554,10 +584,14 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 		local newtext=string.sub(oldtext.."\nErr: "..errmsg,-50000,-1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
 		meta:set_string("print",newtext)
 	end
-	if not ok then
-		reset_meta(pos, code, errmsg)
+	if meta:get_int("do_not_modify_more_pls")==0 or meta:get_int("do_not_modify_more_pls")==nil then
+		if not ok then
+			reset_meta(pos, code, errmsg)
+		else
+			reset_formspec(meta, code, errmsg)
+		end
 	else
-		reset_formspec(meta, code, errmsg)
+		meta:set_int("do_not_modify_more_pls",0)
 	end
 	save_memory(pos, minetest.get_meta(pos), mem)
 end
@@ -586,7 +620,7 @@ local function run_inner(pos, code, event) -- this is the thing that gets called
 		create_environment=create_environment,heat=heat, heat_max=mesecon.setting("overheat_max", 20),
 		get_interrupt=get_interrupt, get_digiline_send=get_digiline_send, safe_globals=safe_globals,
 		create_sandbox=create_sandbox, maxevents=maxevents, timeout=timeout, luac_id=luac_id,
-		more_globals=more_globals,chan_maxlen=chan_maxlen, maxlen=maxlen, 	warning=warning,
+		more_globals=more_globals,chan_maxlen=chan_maxlen, maxlen=maxlen,
 		clean_and_weigh_digiline_message=clean_and_weigh_digiline_message,
 	}
 
@@ -682,13 +716,16 @@ local function on_receive_fields(pos, _, fields, sender)
 		minetest.record_protection_violation(pos, name)
 		return
 	end
+	local meta=minetest.get_meta(pos)
 	if fields.program then
 		set_program(pos, fields.code)
 	elseif fields.tab then
 		if fields.tab=="1" then
-			reset_formspec(minetest.get_meta(pos), nil, nil)
+			meta:set_string("state","editor")
+			reset_formspec(meta, nil, nil)
 		elseif fields.tab=="2" then
-			print_log_formspec(minetest.get_meta(pos))
+			meta:set_string("state","print_log")
+			print_log_formspec(meta)
 		end
 	else
 		return

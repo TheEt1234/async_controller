@@ -23,7 +23,14 @@ This was done because metatool didn't allow me to add support for my node to the
 
 It's basically a copy of the luatool, does not work in machines 
 
-# TODOs:
-- Support for re-programming the luacontroller with digilines
+# TODOs
+- fix the ability to just do
+```lua
+for i=1,1000 do
+    digiline_send("p","extend")
+    digiline_send("p","retract")
+end
+```
+i know this is kinda digistuffs fault but its what makes pistons amazing so
 - Ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone)
 - more testing (maybe)

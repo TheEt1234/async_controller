@@ -89,3 +89,43 @@ expected result:
 
 ```
 (yes nothing)
+
+## 7) modify_self
+### 1
+code:
+```lua
+modify_self(string.rep("A",64000))
+```
+
+expected result: the code **shouldn't** be `AAAAAAAAAA....`
+### 2
+code:
+
+```lua
+modify_self("code!")
+```
+expected result (code):
+```
+code!
+```
+### 3
+code:
+```lua
+mem="modify_self(mem)"
+modify_self(mem)
+```
+expected result (code) (after some events):
+```lua
+    modify_self(mem)
+```
+### 4
+code:
+```lua
+interrupt(1)
+modify_self("modify_self('b')")
+```
+
+expected result (code) *no digiline/program events*:
+```
+b
+```
