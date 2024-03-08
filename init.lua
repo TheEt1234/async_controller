@@ -432,6 +432,26 @@ end
 
 
 local function create_sandbox(code, env, maxevents, timeout)
+	local function traceback(...)
+		local args = { ... }
+		local errmsg = args[1]
+		if type(errmsg)~="string" then
+			-- exit the string sandbox so you can error your _G's (why am i doing this)
+			local string_meta = getmetatable("")
+			local sandbox = string_meta.__index
+			string_meta.__index = string -- Leave string sandbox temporarily
+			errmsg=dump(errmsg)
+			string_meta.__index = sandbox
+		end
+		local t=debug.traceback() -- without args because if the errmsg is an exotic type... guess what... it just returns that?
+		t=t:split("[C]: ")
+		minetest.debug(dump({t,errmsg}))
+		if t[2] then return errmsg.."\nTraceback:\n"..t[2]
+		else 
+			return errmsg.."\nCould not provide traceback."
+		end
+	end
+	
 	if code:byte(1) == 27 then
 		return nil, "Binary code prohibited."
 	end
@@ -450,7 +470,7 @@ local function create_sandbox(code, env, maxevents, timeout)
 		-- Use instruction counter to stop execution
 		-- after luacontroller_maxevents
 		debug.sethook(timeout, "", maxevents)
-		local ok, ret = xpcall(f, debug.traceback,...)
+		local ok, ret = xpcall(f, traceback,...)
 		debug.sethook()  -- Clear hook
 		if not ok then error(ret, 0) end
 		return ret

@@ -46,7 +46,7 @@ It's basically a copy of the luatool, does not work in machines
   - added clearterm(e)
 - pos
 - modify_self(code)
-- traceback in errors (won't help you with debugging timeouts though)
+- traceback in errors
 
 # Limits
 - async controller won't send NaN thru digilines, this was done because a lot of devices were vurnable to that...
