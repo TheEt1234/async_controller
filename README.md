@@ -40,6 +40,17 @@ This was done because metatool didn't allow me to add support for my node to the
 
 It's basically a copy of the luatool, does not work in machines 
 
+# Other features
+- print log
+  - print(text) behaviour is different
+  - added clearterm(e)
+- pos
+- modify_self(code)
+- traceback in errors (won't help you with debugging timeouts though)
+
+# Limits
+- async controller won't send NaN thru digilines, this was done because a lot of devices were vurnable to that...
+
 # TODOs
 - Sandbox ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone, or maybe make the maximum amount of threads running at the same time be 1)
 - more testing (maybe)

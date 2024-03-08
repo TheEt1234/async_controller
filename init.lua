@@ -238,7 +238,7 @@ local function clean_and_weigh_digiline_message(msg, back_references, clean_and_
 		-- length plus the size of the Lua object header (24 bytes on a 64-bit
 		-- platform) plus one byte for the NUL terminator.
 		return msg, #msg + 25
-	elseif t == "number" then
+	elseif t == "number" and msg == msg then -- Doesn't let NaN thru, this was done because like... nobody checks for nan, and that can lead to pretty funny behaviour, see https://github.com/BuckarooBanzay/digibuilder/issues/20 and 
 		-- Numbers are passed by value so need not be touched, and cost 8 bytes
 		-- as all numbers in Lua are doubles.
 		return msg, 8
@@ -288,7 +288,7 @@ local function clean_and_weigh_digiline_message(msg, back_references, clean_and_
 		end
 		return ret, cost
 	else
-		return nil, 0
+		return nil, 0, clean_and_weigh_digiline_message
 	end
 end
 
@@ -327,6 +327,7 @@ local function get_digiline_send(pos, itbl, send_warning, luac_id, chan_maxlen, 
 	end
 end
 
+
 local safe_globals = {
 	-- Don't add pcall/xpcall unless willing to deal with the consequences (unless very careful, incredibly likely to allow killing server indirectly)
 	"assert", "error", "ipairs", "next", "pairs", "select",
@@ -338,7 +339,7 @@ local more_globals = {
 	safe_string_split = safe_string_split,
 	get_safe_print = get_safe_print,
 	get_clearterm = get_clearterm,
-	get_modify_self = get_modify_self
+	get_modify_self = get_modify_self,
 }
 
 local function create_environment(pos, mem, event, itbl, async_env, send_warning)
@@ -449,7 +450,7 @@ local function create_sandbox(code, env, maxevents, timeout)
 		-- Use instruction counter to stop execution
 		-- after luacontroller_maxevents
 		debug.sethook(timeout, "", maxevents)
-		local ok, ret = pcall(f, ...)
+		local ok, ret = xpcall(f, debug.traceback,...)
 		debug.sethook()  -- Clear hook
 		if not ok then error(ret, 0) end
 		return ret
@@ -697,7 +698,7 @@ local digiline = {
 	receptor = {},
 	effector = {
 		action = function(pos, _, channel, msg)
-			msg = clean_and_weigh_digiline_message(msg)
+			msg = clean_and_weigh_digiline_message(msg, nil, clean_and_weigh_digiline_message)
 			run(pos, {type = "digiline", channel = channel, msg = msg})
 		end
 	}
