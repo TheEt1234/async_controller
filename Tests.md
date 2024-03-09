@@ -134,6 +134,7 @@ b
 setup:
 - 1) Place a pipeworks autocrafter with the channel "autocrafter"
 - 2) Put in a recipe and the required amount of nodes for it
+
 code:
 ```lua
 for i=1,1000 do
