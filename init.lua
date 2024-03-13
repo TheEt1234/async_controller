@@ -445,7 +445,6 @@ local function create_sandbox(code, env, maxevents, timeout)
 		end
 		local t=debug.traceback() -- without args because if the errmsg is an exotic type... guess what... it just returns that?
 		t=t:split("[C]: ")
-		minetest.debug(dump({t,errmsg}))
 		if t[2] then return errmsg.."\nTraceback:\n"..t[2]
 		else 
 			return errmsg.."\nCould not provide traceback."
