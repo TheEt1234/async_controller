@@ -444,8 +444,9 @@ local function create_sandbox(code, env, maxevents, timeout)
 			string_meta.__index = sandbox
 		end
 		local t=debug.traceback() -- without args because if the errmsg is an exotic type... guess what... it just returns that?
-		t=t:split("[C]: ")
-		if t[2] then return errmsg.."\nTraceback:\n"..t[2]
+		t=t:split("[C]: in function 'xpcall'")
+		local index = 1
+		if t[index] then return errmsg.."\nTraceback:\n"..t[index]
 		else 
 			return errmsg.."\nCould not provide traceback."
 		end
