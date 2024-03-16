@@ -8,11 +8,6 @@
 -- This is a non standard luacontroller, doesn't support ports at all
 -- And also forces lightweight interrupts
 -- What do you get from all of this?
--- 	NO server lag compared to the luacontroller
--- 	10x more timeout "resistance"
--- 	And no ratelimits will work here :p (the async controller doesn't freeze the server, so there's nothing to ratelimit really)
--- also adds pos to the enviroment WHY WASN'T IT THERE ALREADY
-
 -- Reference
 -- reset_formspec(pos, code, errmsg): installs new code and prints error messages, without resetting LCID
 -- reset_meta(pos, code, errmsg): performs a software-reset, installs new code and prints error message
@@ -27,14 +22,8 @@
 -- (see where local env is defined)
 -- Something nice to play is is appending minetest.env to it.
 
-
-local S = minetest.get_translator(minetest.get_current_modname())
-local max_digi_messages_per_event = tonumber(minetest.settings:get("async_controller.max_digiline_messages_per_event"))
-if max_digi_messages_per_event==nil then
-	max_digi_messages_per_event=150
-end
+local max_digi_messages_per_event = tonumber(minetest.settings:get("async_controller.max_digiline_messages_per_event")) or 150
 local BASENAME = "async_controller:controller"
-
 
 
 
@@ -61,16 +50,16 @@ end
 
 
 local function get_modify_self(pos, itbl, send_warning)
+	local hardcoded_max_code_len= 50000
 	return function(code)
 		if type(code)~="string" then send_warning("Code in modify_self is the wrong type!") return end
-		if #code>=50000 then send_warning("Code in modify_self is too large!") return end
+		if #code>=hardcoded_max_code_len then send_warning("Code in modify_self is too large!") return end
 		table.insert(itbl,{
 			function(ret)
 				local meta = ret.get_meta(ret.pos)
 				ret.reset_formspec(meta,ret.code)
 				meta:set_int("luac_id", math.random(1, 65535))
-				meta:set_string("print","")
-				meta:set_int("do_not_modify_more_pls",1)
+				meta:set_int("has_modified_code",1)
 			end,
 			{
 				pos=pos,code=code
@@ -340,9 +329,15 @@ local more_globals = {
 	get_safe_print = get_safe_print,
 	get_clearterm = get_clearterm,
 	get_modify_self = get_modify_self,
+	get_code_events = function(v)
+		return function() 
+			return v.events -- mmm
+		end
+	end
 }
 
-local function create_environment(pos, mem, event, itbl, async_env, send_warning)
+local function create_environment(pos, mem, event, itbl, async_env, send_warning, variables)
+
 	-- Gather variables for the environment
 	-- Create new library tables on each call to prevent one Luacontroller
 	-- from breaking a library and messing up other Luacontrollers.
@@ -352,6 +347,8 @@ local function create_environment(pos, mem, event, itbl, async_env, send_warning
 		mem = mem,
 		heat = async_env.heat,
 		heat_max = async_env.heat_max,
+		code_events_max = async_env.maxevents,
+		get_code_events = async_env.more_globals.get_code_events(variables), -- i had to make this a function because uh
 		print = async_env.more_globals.get_safe_print(pos, itbl),
 		clearterm = async_env.more_globals.get_clearterm(pos, itbl),
 		modify_self = async_env.more_globals.get_modify_self(pos, itbl, send_warning),
@@ -431,7 +428,7 @@ local function timeout()
 end
 
 
-local function create_sandbox(code, env, maxevents, timeout)
+local function create_sandbox(code, env, maxevents, timeout, variables)
 	local function traceback(...)
 		local args = { ... }
 		local errmsg = args[1]
@@ -464,12 +461,24 @@ local function create_sandbox(code, env, maxevents, timeout)
 	if rawget(_G, "jit") then
 		jit.off(f, true)
 	end
-
+	local read_only_events = 0 -- luac cant write to this variable
 	return function(...)
 		-- NOTE: This runs within string metatable sandbox, so the setting's been moved out for safety
 		-- Use instruction counter to stop execution
 		-- after luacontroller_maxevents
-		debug.sethook(timeout, "", maxevents)
+		debug.sethook(
+		function(_type)
+			read_only_events=read_only_events+1
+			if read_only_events >= maxevents then
+				timeout()
+			else
+				variables.events = read_only_events
+				-- expose the amount of events executed to luacontroller
+				-- useful for benchmarking and like detecting if its about to timeout
+			end
+
+		end
+		, "", 1)
 		local ok, ret = xpcall(f, traceback,...)
 		debug.sethook()  -- Clear hook
 		if not ok then error(ret, 0) end
@@ -542,7 +551,11 @@ local function reset_meta(pos, code, errmsg)
 	meta:set_string("print","")
 end
 local function run_async(pos, mem, event, code, async_env) -- this is the thing that executes it, has async enviroment
-
+	async_env.variables = {
+		events = 0
+	}
+	
+	
 	-- 'Last warning' label.
 	local warning = ""
 	local function send_warning(str)
@@ -551,13 +564,13 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 
 	local itbl = {}
 	local start_time=minetest.get_us_time()
-	local env = async_env.create_environment(pos, mem, event, itbl, async_env, send_warning)
+	local env = async_env.create_environment(pos, mem, event, itbl, async_env, send_warning, async_env.variables)
 	if not env then return false, "Env does not exist. Controller has been moved?", mem, pos, itbl, {start_time, minetest.get_us_time()} end
 
 	local success, msg
 	-- Create the sandbox and execute code
 	local f
-	f, msg = async_env.create_sandbox(code, env, async_env.maxevents, async_env.timeout)
+	f, msg = async_env.create_sandbox(code, env, async_env.maxevents, async_env.timeout, async_env.variables)
 	if not f then return false, msg, env.mem, pos, itbl, {start_time, minetest.get_us_time()} end
 	-- Start string true sandboxing
 	local onetruestring = getmetatable("")
@@ -615,14 +628,14 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 		local newtext=string.sub(oldtext.."\nErr: "..errmsg,-50000,-1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
 		meta:set_string("print",newtext)
 	end
-	if meta:get_int("do_not_modify_more_pls")==0 or meta:get_int("do_not_modify_more_pls")==nil then
+	if meta:get_int("has_modified_code")==0 or meta:get_int("has_modified_code")==nil then
 		if not ok then
 			reset_meta(pos, code, errmsg)
 		else
 			reset_formspec(meta, code, errmsg)
 		end
 	else
-		meta:set_int("do_not_modify_more_pls",0)
+		meta:set_int("has_modified_code",0)
 	end
 	save_memory(pos, minetest.get_meta(pos), mem)
 end
@@ -774,7 +787,7 @@ local mesecons = {
 }
 
 minetest.register_node(node_name, {
-	description = S("Async Controller"),
+	description = "Async Controller",
 	drawtype = "nodebox",
 	tiles = {
 		"async_controller_top.png",
