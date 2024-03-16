@@ -47,6 +47,7 @@ It's basically a copy of the luatool, does not work in machines
 - pos
 - modify_self(code)
 - traceback in errors
+- get_code_events() [also this allows benchmarking]
 
 # Limits
 - async controller won't send NaN thru digilines, this was done because a lot of devices were vurnable to that...
