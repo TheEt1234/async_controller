@@ -311,3 +311,4 @@ end
 
 async_controller.env.create_environment = create_environment
 async_controller.env.create_environment_imports = create_environment_imports
+async_controller.env.clean_and_weigh_digiline_message = clean_and_weigh_digiline_message

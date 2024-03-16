@@ -7,6 +7,12 @@ local BASENAME = "async_controller:controller"
 
 async_controller = {
 	env={}
+	-- does this mean that some mod can just mess with the insides of async_controller?
+	-- YES and i would love if someone actually attempted that....
+
+	-- does this aproach make the code confusing?
+	-- yes
+
 }
 
 local MP = minetest.get_modpath("async_controller")
@@ -81,7 +87,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 				if args.is_digiline==false or digiline_sends<=max_digi_messages_per_event then
 					args.mesecon_queue=mesecon.queue
 					args.get_meta=minetest.get_meta
-					args.reset_formspec=reset_formspec
+					args.reset_formspec=async_controller.env.reset_formspec
 					local failure = func(args)
 					if failure then
 						ok=false
@@ -218,7 +224,7 @@ local digiline = {
 	receptor = {},
 	effector = {
 		action = function(pos, _, channel, msg)
-			msg = clean_and_weigh_digiline_message(msg, nil, clean_and_weigh_digiline_message)
+			msg = async_controller.env.clean_and_weigh_digiline_message(msg, nil, async_controller.env.clean_and_weigh_digiline_message)
 			run(pos, {type = "digiline", channel = channel, msg = msg})
 		end
 	}
