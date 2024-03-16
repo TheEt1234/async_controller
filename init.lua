@@ -13,6 +13,12 @@ async_controller = {
 	-- does this aproach make the code confusing?
 	-- yes
 
+	-- does it make development slightly easier for me
+	-- slightly yes
+
+	-- why did i do this
+	-- i have no idea
+
 }
 
 local MP = minetest.get_modpath("async_controller")
