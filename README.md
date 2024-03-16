@@ -52,6 +52,9 @@ It's basically a copy of the luatool, does not work in machines
 - async controller won't send NaN thru digilines, this was done because a lot of devices were vurnable to that...
 
 # TODOs
+- File seperation 
+- Making the code better:tm:
+- Make all the values starting with hardcoded_ be a setting
 - Sandbox ratelimiting (maybe based off microseconds used in the sandbox, or just leave it alone, or maybe make the maximum amount of threads running at the same time be 1)
 - more testing (maybe)
 

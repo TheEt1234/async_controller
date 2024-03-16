@@ -4,6 +4,7 @@
         "lowercase-global",
         "deprecated",
         "param-type-mismatch",
-        "undefined-field"
+        "undefined-field",
+        "need-check-nil"
     ]
 }
