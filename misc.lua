@@ -1,4 +1,4 @@
-
+local BASENAME = "async_controller:controller"
 local function burn_controller(pos)
 	local node = minetest.get_node(pos)
 	node.name = BASENAME.."_burnt"
