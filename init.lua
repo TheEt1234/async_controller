@@ -305,7 +305,7 @@ minetest.register_node(BASENAME .. "_burnt", {
 	selection_box = selection_box,
 	node_box = node_box,
 	on_construct = reset_meta,
-	on_receive_fields = on_receive_fields,
+	on_receive_fields = async_controller.env.on_receive_fields,
 	sounds = mesecon.node_sound.stone,
 	on_blast = mesecon.on_blastnode,
 })
