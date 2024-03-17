@@ -51,7 +51,7 @@ It's basically a copy of the luatool, does not work in machines
 
 # Limits
 - async controller won't send NaN thru digilines, this was done because a lot of devices were vurnable to that...
-
+- this fixes https://github.com/minetest-mods/mesecons/issues/516 technically by introducing a new hardcoded 20 milisecond ratelimit
 # TODOs
 - Make all the values starting with hardcoded_ be a setting
 - Make the code better:tm:
