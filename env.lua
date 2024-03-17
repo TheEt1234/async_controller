@@ -254,6 +254,7 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 			sub = string.sub,
 			find = imports.safe_string_find,
 			split = imports.safe_string_split,
+
 		},
 		math = {
 			abs = math.abs,
@@ -305,6 +306,7 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 	for _, name in pairs(imports.safe_globals) do
 		env[name] = _G[name]
 	end
+
 
 	return env
 end

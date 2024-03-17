@@ -1,32 +1,30 @@
-
-
-
-
 local function create_sandbox(code, env, maxevents, luacontroller_dynamic_values)
 	
     local function traceback(...)
 		local args = { ... }
 		local errmsg = args[1]
-		if type(errmsg)~="string" then
-			-- exit the string sandbox so you can error your _G's (why am i doing this)
-			local string_meta = getmetatable("")
-			local sandbox = string_meta.__index
-			string_meta.__index = string -- Leave string sandbox temporarily
-			errmsg=dump(errmsg)
-			string_meta.__index = sandbox
-		end
-		local t=debug.traceback() -- without args because if the errmsg is an exotic type... guess what... it just returns that?
+		local string_meta = getmetatable("")
+		local sandbox = string_meta.__index
+		string_meta.__index = string -- Leave string sandbox temporarily
+		if type(errmsg)~="string" then errmsg="Unknown error of type: "..type(errmsg) end
+
+		local t=debug.traceback()
+		string_meta.__index = sandbox
+		--[[
 		t=t:split("[C]: in function 'xpcall'")
 		local index = 1
 		if t[index] then return errmsg.."\nTraceback:\n"..t[index]
 		else 
 			return errmsg.."\nCould not provide traceback."
 		end
+		--]]
+		return errmsg.."\n"..t
 	end
     
-    local function timeout()
+    local function timeout(reason)
         debug.sethook() -- Clear hook
-        error("Code timed out!", 2)
+		if reason==nil then reason = "Too many code events" end
+        error("Code timed out! Reason: "..reason, 2)
     end
 	
     if code:byte(1) == 27 then
@@ -42,6 +40,8 @@ local function create_sandbox(code, env, maxevents, luacontroller_dynamic_values
 	end
 	local events = 0
     local hardcoded_hook_time = 1
+	local hardcoded_execution_time_limit = 20*1000 -- 20 miliseconds, yes so generous i know.
+	local old = minetest.get_us_time()
     -- TODO: name this better
         -- but basically its "how often does the hook code execute"
         -- less is slower but more accurate for the luacontroller
@@ -52,9 +52,13 @@ local function create_sandbox(code, env, maxevents, luacontroller_dynamic_values
 		-- after luacontroller_maxevents
 		debug.sethook(
             function(...)
+				local cur = minetest.get_us_time()
+				local diff = cur - old 
                 events=events + hardcoded_hook_time
                 if events >= maxevents then
                     timeout()
+				elseif diff>=hardcoded_execution_time_limit then
+					timeout("Execution time reached the "..tonumber(hardcoded_execution_time_limit).."ms limit (what did ya do omg)")
                 else
                     luacontroller_dynamic_values.events = events
                     -- expose to luac
