@@ -17,7 +17,7 @@ local function create_sandbox(code, env, maxevents, luacontroller_dynamic_values
 		else 
 			return errmsg.."\nCould not provide traceback."
 		end
-		]]
+		--]]
 		return errmsg.."\n"..t
 	end
     
