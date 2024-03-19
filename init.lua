@@ -318,8 +318,7 @@ minetest.register_craft({
 	}
 })
 
-
--- Register a fancy tool because luatool doesnt allow me to add support
 if metatool ~= nil then
 	dofile(MP.."/metatool.lua")
 end
+
