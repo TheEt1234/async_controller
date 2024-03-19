@@ -5,11 +5,11 @@
 -------------------------
 
 
-local function get_modify_self(pos, itbl, send_warning)
-	local hardcoded_max_code_len = 50000
+local function get_modify_self(pos, itbl, send_warning, settings)
+	local max_code_len = settings.modify_self_max_code_len
 	return function(code)
 		if type(code)~="string" then send_warning("Code in modify_self is the wrong type!") return end
-		if #code>=hardcoded_max_code_len then send_warning("Code in modify_self is too large!") return end
+		if #code>=max_code_len then send_warning("Code in modify_self is too large!") return end
 		table.insert(itbl,{
 			function(ret)
 				local meta = ret.get_meta(ret.pos)
@@ -239,9 +239,9 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 		get_code_events = imports.get_code_events(dynamic_values),
 		print = imports.get_safe_print(pos, itbl),
 		clearterm = imports.get_clearterm(pos, itbl),
-		modify_self = imports.get_modify_self(pos, itbl, send_warning),
+		modify_self = imports.get_modify_self(pos, itbl, send_warning, async_env.settings),
 		interrupt = imports.get_interrupt(pos, itbl, send_warning),
-		digiline_send = imports.get_digiline_send(pos, itbl, send_warning, async_env.luac_id, async_env.chan_maxlen, async_env.maxlen, imports.clean_and_weigh_digiline_message),
+		digiline_send = imports.get_digiline_send(pos, itbl, send_warning, async_env.luac_id, async_env.settings.channel_maxlen, async_env.settings.message_maxlen, imports.clean_and_weigh_digiline_message),
 		string = {
 			byte = string.byte,
 			char = string.char,
@@ -306,7 +306,7 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 	for _, name in pairs(imports.safe_globals) do
 		env[name] = _G[name]
 	end
-
+	
 
 	return env
 end

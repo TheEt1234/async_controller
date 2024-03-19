@@ -2,25 +2,34 @@
 -- And also forces lightweight interrupts
 
 
-local max_digi_messages_per_event = tonumber(minetest.settings:get("async_controller.max_digiline_messages_per_event")) or 150
 local BASENAME = "async_controller:controller"
 
-
+local function setting_or_default(setting, default, if_zero) -- int
+	local s = minetest.settings:get(setting)
+	if tonumber(s)~=nil then 
+		s=tonumber(s)
+	end
+	if s == 0 and if_zero ~= nil then
+		return if_zero
+	else
+		return s or default
+	end
+end
 
 async_controller = {
-	env={}
-	-- does this mean that some mod can just mess with the insides of async_controller?
-	-- YES and i would love if someone actually attempted that....
-
-	-- does this aproach make the code confusing?
-	-- yes
-
-	-- does it make development slightly easier for me
-	-- slightly yes
-
-	-- why did i do this
-	-- i have no idea
-
+	env={
+		settings = {
+			channel_maxlen = mesecon.setting("luacontroller_digiline_channel_maxlen", 256),
+			message_maxlen = mesecon.setting("luacontroller_digiline_maxlen", 50000),
+			memsize = mesecon.setting("luacontroller_memsize", 100000),
+			overheat_max = mesecon.setting("overheat_max",20),
+			max_digilines_messages_per_event = setting_or_default("async_controller.max_digiline_messages_per_event", 150),
+			maxevents = setting_or_default("async_controller.maxevents", 10000*10, math.huge), -- setting to zero will disable maxevents ratelimiting, imo kinda useless
+			execution_time_limit = setting_or_default("async_controller.execution_time_limit", 10000, math.huge), -- setting to zero will disable this ratelimiting
+			hook_time = setting_or_default("async_controller.hook_time",1),
+			modify_self_max_code_len = setting_or_default("async_controller.modify_self_max_code_len", 50000),
+		}
+	}
 }
 
 local MP = minetest.get_modpath("async_controller")
@@ -42,7 +51,9 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 		events = 0
 	}
 	
-	
+	-- we have to rfuncs mem here btw because minetest.serialize(string.sub) => S E G F A U L T (bad bad bad bad)
+	-- and minetest for some reason serializes everything.. bruhh
+
 	-- 'Last warning' label.
 	local warning = ""
 	local function send_warning(str)
@@ -52,13 +63,13 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 	local itbl = {}
 	local start_time=minetest.get_us_time()
 	local env = async_env.create_environment(pos, mem, event, itbl, async_env, async_env.create_environment_imports, send_warning, async_env.luacontroller_dynamic_values)
-	if not env then return false, "Env does not exist. Controller has been moved?", mem, pos, itbl, {start_time, minetest.get_us_time()} end
+	if not env then return false, "Env does not exist. Controller has been moved?", async_env.remove_functions(mem), pos, itbl, {start_time, minetest.get_us_time()} end
 
 	local success, msg
 	-- Create the sandbox and execute code
 	local f
-	f, msg = async_env.create_sandbox(code, env, async_env.maxevents, async_env.luacontroller_dynamic_values)
-	if not f then return false, msg, env.mem, pos, itbl, {start_time, minetest.get_us_time()} end
+	f, msg = async_env.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
+	if not f then return false, msg, async_env.remove_functions(env.mem), pos, itbl, {start_time, minetest.get_us_time()} end
 	-- Start string true sandboxing
 	local onetruestring = getmetatable("")
 	-- If a string sandbox is already up yet inconsistent, something is very wrong
@@ -68,8 +79,8 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 	onetruestring.__index = string
 	local end_time=minetest.get_us_time()
 	-- End string true sandboxing
-	if not success then return false, msg, env.mem, pos, itbl, {start_time, end_time}  end
-	return false,  warning, env.mem, pos, itbl, {start_time, end_time}
+	if not success then return false, msg, async_env.remove_functions(env.mem), pos, itbl, {start_time, end_time}  end
+	return false,  warning, async_env.remove_functions(env.mem), pos, itbl, {start_time, end_time}
 end
 
 local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thing that gets called AFTER the luac executes
@@ -92,7 +103,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 				if args.is_digiline then
 					digiline_sends=digiline_sends+1
 				end
-				if args.is_digiline==false or digiline_sends<=max_digi_messages_per_event then
+				if args.is_digiline==false or digiline_sends<=async_controller.env.settings.max_digilines_messages_per_event then
 					args.mesecon_queue=mesecon.queue
 					args.get_meta=minetest.get_meta
 					args.reset_formspec=async_controller.env.reset_formspec
@@ -137,30 +148,11 @@ local function run_inner(pos, code, event) -- this is the thing that gets called
 	local mem  = async_controller.env.load_memory(meta)
 
 	local heat = mesecon.get_heat(pos)
-	local maxevents = tonumber(minetest.settings:get("async_controller.maxevents")) or (10000*10)
 
 	local luac_id = meta:get_int("luac_id")
-	local chan_maxlen = mesecon.setting("luacontroller_digiline_channel_maxlen", 256)
-	local maxlen = mesecon.setting("luacontroller_digiline_maxlen", 50000)
-	-- Async hell begins
-
-	--[[
-	local async_env = {
-		create_environment=create_environment,heat=heat, heat_max=mesecon.setting("overheat_max", 20),
-		get_interrupt=get_interrupt, get_digiline_send=get_digiline_send, safe_globals=safe_globals,
-		create_sandbox=create_sandbox, maxevents=maxevents, timeout=timeout, luac_id=luac_id,
-		more_globals=more_globals,chan_maxlen=chan_maxlen, maxlen=maxlen,
-		clean_and_weigh_digiline_message=clean_and_weigh_digiline_message,
-	}
-	--]]
-
 	local async_env = async_controller.env
 	async_env.heat = heat
-	async_env.heat_max=mesecon.setting("overheat_max",20)
-	async_env.maxevents = maxevents
 	async_env.luac_id = luac_id
-	async_env.maxlen = maxlen
-	async_env.chan_maxlen = chan_maxlen
 
 	minetest.handle_async(run_async,run_callback, pos, mem, event, code, async_env)
 end

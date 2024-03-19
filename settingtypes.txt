@@ -1,3 +1,14 @@
 [async_controller]
-async_controller.maxevents (Async controller execution time limit) int 100000
 async_controller.max_digiline_messages_per_event (Maximum amount of digilines messages per event) int 150
+
+# In code events, code event is an action that happens in lua, by default this is 10 times the amount of the normal luac, set 0 to disable (fine if you have enabled the execution time limit, but still might pose a risk) 
+async_controller.maxevents (Async controller execution code-event limit, set 0 to disable) int 100000
+
+# in microseconds, 1 milisecond is 1 000 microseconds, set 0 to disable, but keep in mind that doing that allows luacontrollers to easily crash your server
+async_controller.execution_time_limit (Async controller execution time limit) int 10000
+
+# "How often should the hook execute" setting this number higher means it will execute less, also may expose you to security risks if you set it too high
+async_controller.hook_time ([Advanced] How often should the hook execute) int 1
+
+# In characters, how big can the code inside modify_self get
+async_controller.modify_self_max_code_len (modify_self maximum code length) int 50000

@@ -18,14 +18,16 @@ local function remove_functions(x)
 	if tp == "function" then
 		return nil
 	end
-
 	-- Make sure to not serialize the same table multiple times, otherwise
 	-- writing mem.test = mem in the Luacontroller will lead to infinite recursion
 	local seen = {}
-
+	local someone_is_abusing_the_serializer = false 
 	local function rfuncs(x)
 		if x == nil then return end
-		if seen[x] then return end
+		if seen[x] then 
+			someone_is_abusing_the_serializer = true
+			return
+		end
 		seen[x] = true
 		if type(x) ~= "table" then return end
 
@@ -42,11 +44,16 @@ local function remove_functions(x)
 			end
 		end
 	end
-
 	rfuncs(x)
-
-	return x
+	if not someone_is_abusing_the_serializer then
+		return x
+	else
+		return {"no weird tables :/"}
+	end
 end
+
+
+
 
 local function load_memory(meta)
 	return minetest.deserialize(meta:get_string("lc_memory"), true) or {}
@@ -54,8 +61,9 @@ end
 
 
 local function save_memory(pos, meta, mem)
-	local memstring = minetest.serialize(remove_functions(mem))
-	local memsize_max = mesecon.setting("luacontroller_memsize", 100000)
+	-- local memstring = minetest.serialize(remove_functions(mem))
+	local memstring = minetest.serialize(mem) -- mem gets actually serialized and deserialized before this, so uh yeah we are also removing functions in run_async to prevent segfault
+	local memsize_max = async_controller.env.settings.memsize
 
 	if (#memstring <= memsize_max) then
 		meta:set_string("lc_memory", memstring)
