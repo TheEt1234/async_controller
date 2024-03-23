@@ -12,6 +12,9 @@ async_controller.execution_time_limit (Async controller execution time limit) in
 # basically uhh... if you set this to one, the hook (sandbox ratelimiter) code
 # will execute for every code event
 # if you set this to like 10, it will execute every 10 code events
+# The hook is used for ratelimiting
+# So basically this is "How often should the ratelimiting code run"
+# Setting it above or equal to async_controller.maxevents basically disables all other forms of ratelimiting (bad bad)
 async_controller.hook_time (How often should the hook execute) int 10
 
 # In characters, how big can the code inside modify_self get
