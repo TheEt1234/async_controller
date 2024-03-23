@@ -1,14 +1,27 @@
 [async_controller]
 async_controller.max_digiline_messages_per_event (Maximum amount of digilines messages per event) int 150
 
-# In code events, code event is an action that happens in lua, by default this is 10 times the amount of the normal luac, set 0 to disable (fine if you have enabled the execution time limit, but still might pose a risk) 
+# In code events, code event is an action that happens in lua
+# by default this is 10 times the amount of the normal luac, set 0 to disable 
 async_controller.maxevents (Async controller execution code-event limit, set 0 to disable) int 100000
 
-# in microseconds, 1 milisecond is 1 000 microseconds, set 0 to disable, but keep in mind that doing that allows luacontrollers to easily crash your server
+# in microseconds, 1 milisecond is 1 000 microseconds
+# set 0 to disable
 async_controller.execution_time_limit (Async controller execution time limit) int 10000
 
-# "How often should the hook execute" setting this number higher means it will execute less, also may expose you to security risks if you set it too high
-async_controller.hook_time ([Advanced] How often should the hook execute) int 1
+# basically uhh... if you set this to one, the hook (sandbox ratelimiter) code
+# will execute for every code event
+# if you set this to like 10, it will execute every 10 code events
+async_controller.hook_time (How often should the hook execute) int 10
 
 # In characters, how big can the code inside modify_self get
 async_controller.modify_self_max_code_len (modify_self maximum code length) int 50000
+
+# In megabytes, please keep this at a high number to minimize the outside influence
+# Or set to 0 to disable this kind of ratelimiting
+# The way it works is:
+# 1) Get the lua memory usage before the execution starts
+# 2) On the hook: check if the difference between current lua memory usage and the previous memory usage is higher than this setting
+# 3) if it is, stop the execution
+# So yeah if you want the async_controller to be 1000% reliable you should set this setting to 0
+async_controller.max_sandbox_mem_size (How much memory can the sandbox consume before error'ing) int 50

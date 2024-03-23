@@ -29,37 +29,48 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 		return nil, "Binary code prohibited."
 	end
 	local f, msg = loadstring(code)
+	
 	if not f then return nil, msg end
 	setfenv(f, env)
 
 	-- turn JIT off for the lua code for count events
+	-- *sadly* this has to be done, because an attacker could literally just do for i=1,1000000 do end and it would just not trigger any event
+	-- or does it
+	-- well... i will try
+
+
 	if rawget(_G, "jit") then
 		jit.off(f, true)
 	end
 	local events = 0
 	local execution_time_limit = async_env.settings.execution_time_limit
-	local old = minetest.get_us_time()
+	local time = minetest.get_us_time
+	local old = time()
 	local hook_time = async_env.settings.hook_time
 	local maxevents = async_env.settings.maxevents
-		-- TODO: name this better
-		-- but basically its "how often does the hook code execute"
-		-- less is slower but more accurate for the luacontroller
-		-- more is zfaster but less accurate for the luacontroller
+	-- perhaps the shittiest way of limiting memory... pls submit an issue or a pr if you have a better idea :D
+	-- The main issue with it is outside influence
+	-- which would make the async_controller unreliable
+	-- so the memory limit has to be set really high
+	local mem_old = collectgarbage("count")
+	local max_mem = async_env.settings.max_sandbox_mem_size*1024 -- in kilobytes
 	return function(...)
-		-- NOTE: This runs within string metatable sandbox, so the setting's been moved out for safety
-		-- Use instruction counter to stop execution
-		-- after luacontroller_maxevents
 		debug.sethook(
 			function(...)
-				local cur = minetest.get_us_time()
-				local diff = cur - old
+				local cur = time()
+				local time_use = cur - old
+				local mem_cur = collectgarbage("count")
+				local mem_use = mem_cur - mem_old
 				events = events + hook_time
 				if events >= maxevents then
-					timeout("Too many code events!")
-				elseif diff >= execution_time_limit then
+					timeout("Too many code events! (limit: "..maxevents..")")
+				elseif time_use >= execution_time_limit then
 					timeout("Execution time reached the " .. tostring(execution_time_limit / 1000) .."ms limit!")
+				elseif mem_use>max_mem then
+					timeout("Sandbox memory usage exceeded! (limit: " .. max_mem/1024 .. "mb) if this was due to outside factors im sorry, there is no better way to limit memory i think, if there is please create an issue in the async_controller repo")
 				else
 					luacontroller_dynamic_values.events = events
+					luacontroller_dynamic_values.ram_usage = mem_use
 					-- expose to luac
 				end
 			end

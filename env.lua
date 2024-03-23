@@ -215,13 +215,6 @@ local create_environment_imports = {
     get_digiline_send = get_digiline_send,
     clean_and_weigh_digiline_message = clean_and_weigh_digiline_message,
     safe_date = safe_date,
-	get_code_events = function(v)
-		return function() 
-            if v.events then 
-			    return v.events -- why is this a function() return function()? because it wouldnt work if it wasnt
-            end
-		end
-	end,
     safe_globals = safe_globals,
 
 }
@@ -234,9 +227,13 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 		event = event,
 		mem = mem,
 		heat = async_env.heat,
-		heat_max = async_env.heat_max,
-		code_events_max = async_env.maxevents,
-		get_code_events = imports.get_code_events(dynamic_values),
+		heat_max = async_env.settings.overheat_max, -- sorta there just for compatibility
+		get_code_events = function() 
+			return dynamic_values.events
+		end,
+		get_ram_usage = function()
+			return dynamic_values.ram_usage
+		end,
 		print = imports.get_safe_print(pos, itbl),
 		clearterm = imports.get_clearterm(pos, itbl),
 		modify_self = imports.get_modify_self(pos, itbl, send_warning, async_env.settings),
@@ -254,7 +251,6 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 			sub = string.sub,
 			find = imports.safe_string_find,
 			split = imports.safe_string_split,
-
 		},
 		math = {
 			abs = math.abs,
@@ -300,6 +296,20 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 			time = os.time,
 			datetable = imports.safe_date,
 		},
+		server = {
+			us_time = minetest.get_us_time,
+			conf = {
+				code_events_max = async_env.settings.maxevents,
+				heat_max = async_env.settings.overheat_max,
+				execution_time_limit = async_env.settings.execution_time_limit,
+				channel_maxlen = async_env.settings.channel_maxlen,
+				message_maxlen = async_env.settings.message_maxlen,
+				memsize = async_env.settings.memsize,
+				max_digilines_messages_per_event = async_env.settings.max_digilines_messages_per_event,
+				modify_self_max_code_len = async_env.settings.modify_self_max_code_len,
+				max_sandbox_mem_size = async_env.settings.max_sandbox_mem_size
+			}
+		}
 	}
 	env._G = env
 

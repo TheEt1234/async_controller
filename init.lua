@@ -2,6 +2,7 @@
 -- And also forces lightweight interrupts
 
 
+
 local BASENAME = "async_controller:controller"
 
 local function setting_or_default(setting, default, if_zero) -- int
@@ -26,11 +27,13 @@ async_controller = {
 			max_digilines_messages_per_event = setting_or_default("async_controller.max_digiline_messages_per_event", 150),
 			maxevents = setting_or_default("async_controller.maxevents", 10000*10, math.huge), -- setting to zero will disable maxevents ratelimiting, imo kinda useless
 			execution_time_limit = setting_or_default("async_controller.execution_time_limit", 10000, math.huge), -- setting to zero will disable this ratelimiting
-			hook_time = setting_or_default("async_controller.hook_time",1),
+			hook_time = setting_or_default("async_controller.hook_time",10),
 			modify_self_max_code_len = setting_or_default("async_controller.modify_self_max_code_len", 50000),
+			max_sandbox_mem_size = setting_or_default("async_controller.max_sandbox_mem_size",50, math.huge),
 		}
 	}
 }
+
 
 local MP = minetest.get_modpath("async_controller")
 
@@ -48,7 +51,8 @@ end
 
 local function run_async(pos, mem, event, code, async_env) -- this is the thing that executes it, has async enviroment
 	async_env.luacontroller_dynamic_values = {
-		events = 0
+		events = 0,
+		ram_usage = 0
 	}
 	
 	-- we have to rfuncs mem here btw because minetest.serialize(string.sub) => S E G F A U L T (bad bad bad bad)
