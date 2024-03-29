@@ -311,14 +311,16 @@ minetest.register_node(BASENAME .. "_burnt", {
 ------------------------
 -- Craft Registration --
 ------------------------
-local wire = "digilines:wire_std_00000000"
-local silicon = "mesecons_materials:silicon"
+
+local luac = "mesecons_luacontroller:luacontroller0000"
+local copp = "default:copperblock"
+local heat = "digistuff:heatsink"
 minetest.register_craft({
 	output = BASENAME,
 	recipe = {
-		{silicon, silicon, wire},
-		{silicon, silicon, wire},
-		{wire,    wire,    ''  },
+		{copp, heat, copp},
+		{luac, luac, luac},
+		{luac, luac, luac},
 	}
 })
 
