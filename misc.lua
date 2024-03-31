@@ -14,6 +14,8 @@ local function overheat(pos)
 end
 
 local function remove_functions(x)
+	-- also acts as a segfault prevention
+	-- since you cant serialize string.sub for example
 	local tp = type(x)
 	if tp == "function" then
 		return nil
@@ -21,11 +23,9 @@ local function remove_functions(x)
 	-- Make sure to not serialize the same table multiple times, otherwise
 	-- writing mem.test = mem in the Luacontroller will lead to infinite recursion
 	local seen = {}
-	local someone_is_abusing_the_serializer = false 
 	local function rfuncs(x)
 		if x == nil then return end
 		if seen[x] then 
-			someone_is_abusing_the_serializer = true
 			return
 		end
 		seen[x] = true
@@ -45,14 +45,10 @@ local function remove_functions(x)
 		end
 	end
 	rfuncs(x)
-	if not someone_is_abusing_the_serializer then
-		return x
-	else
-		return {"no weird tables :/"}
-	end
+
+	return x
+
 end
-
-
 
 
 local function load_memory(meta)
@@ -60,17 +56,29 @@ local function load_memory(meta)
 end
 
 
+
 local function save_memory(pos, meta, mem)
 	-- local memstring = minetest.serialize(remove_functions(mem))
-	local memstring = minetest.serialize(mem) -- mem gets actually serialized and deserialized before this, so uh yeah we are also removing functions in run_async to prevent segfault
+	-- mem gets remove_functions'd *before* it gets to here
+	local memstring = minetest.serialize(mem)
 	local memsize_max = async_controller.env.settings.memsize
-
+	
+	if memstring == "Serializer took too long!" then
+		burn_controller(pos)
+		meta:set_string("lc_memory",minetest.serialize({}))
+		meta:mark_as_private("lc_memory")
+		
+		async_controller.env.reset_formspec(meta, meta:get_string("code"), "Error: Serializer took too long to execute!\nController overheats.")
+		return
+	end
+	
 	if (#memstring <= memsize_max) then
 		meta:set_string("lc_memory", memstring)
 		meta:mark_as_private("lc_memory")
 	else
-		print("Error: Luacontroller memory overflow. "..memsize_max.." bytes available, "
-				..#memstring.." required. Controller overheats.")
+
+		async_controller.env.reset_formspec(meta, meta:get_string("code"), "Error: Luacontroller memory overflow. "..memsize_max.." bytes available, "
+		..#memstring.." required.\nController overheats.")
 		burn_controller(pos)
 	end
 end

@@ -11,8 +11,12 @@ so we can get away with giving the luacontroller more *power*
   See Docs.md
 
 # Attempts to fix/fixes to bad bugz
-- https://github.com/minetest-mods/mesecons/issues/415
-   - when it sees table shenanigans in mem, it will replace it with `{"no weird tables :/"}`
+- ~~https://github.com/minetest-mods/mesecons/issues/415~~
+    - ~~when it sees table shenanigans in mem, it will replace it with `{"no weird tables :/"}`~~
+      - ~~this fix was problematic, because it had false positives~~
+    - ~~Runs the serializer under a debug hook, that's currently limited to 20 000 code events, if it exceeds that, it will **burn**~~
+      - ~~`doesn't really make a difference in my machine, since the luacontroller already burns because it used up too much memory`~~
+    - **ok so this isnt a problem anymore, because of improvements to the serializer, make sure to use the latest version of minetest with this mod and mesecons**
 - https://github.com/minetest-mods/mesecons/issues/516
   - introduces a different kind of ratelimit, still uses hooks but hard-limits the program to 5 miliseconds
   - makes the maxevents sorta obsolete maybe
