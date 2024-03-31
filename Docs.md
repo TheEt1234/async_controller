@@ -37,4 +37,4 @@
 - You are forced to use lightweight interrupts (so no iid, also you can `interrupt(0)`)
 - You can't send 2 000 messages at that digistuff noteblock to blow people's ears off, *by default* it will only send 150 per event
 - When an error occurs, the traceback is provided
-- You can see memory error(s) now
+- You can see memory errors now
