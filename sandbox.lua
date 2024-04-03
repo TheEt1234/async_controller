@@ -29,7 +29,7 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 		return nil, "Binary code prohibited."
 	end
 	local f, msg = loadstring(code)
-	
+
 	if not f then return nil, msg end
 	setfenv(f, env)
 
@@ -53,7 +53,7 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 	-- which would make the async_controller unreliable
 	-- so the memory limit has to be set really high
 	local mem_old = collectgarbage("count")
-	local max_mem = async_env.settings.max_sandbox_mem_size*1024 -- in kilobytes
+	local max_mem = async_env.settings.max_sandbox_mem_size * 1024 -- in kilobytes
 	return function(...)
 		debug.sethook(
 			function(...)
@@ -63,11 +63,13 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 				local mem_use = mem_cur - mem_old
 				events = events + hook_time
 				if events >= maxevents then
-					timeout("Too many code events! (limit: "..maxevents..")")
+					timeout("Too many code events! (limit: " .. maxevents .. ")")
 				elseif time_use >= execution_time_limit then
-					timeout("Execution time reached the " .. tostring(execution_time_limit / 1000) .."ms limit!")
-				elseif mem_use>max_mem then
-					timeout("Sandbox memory usage exceeded! (limit: " .. max_mem/1024 .. "mb) if this was due to outside factors im sorry, there is no better way to limit memory i think, if there is please create an issue in the async_controller repo")
+					timeout("Execution time reached the " .. tostring(execution_time_limit / 1000) .. "ms limit!")
+				elseif mem_use > max_mem then
+					timeout("Sandbox memory usage exceeded! (limit: " ..
+					max_mem / 1024 ..
+					"mb) if this was due to outside factors im sorry, there is no better way to limit memory i think, if there is please create an issue in the async_controller repo")
 				else
 					luacontroller_dynamic_values.events = events
 					luacontroller_dynamic_values.ram_usage = mem_use

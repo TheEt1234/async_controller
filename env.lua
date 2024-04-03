@@ -1,5 +1,3 @@
-
-
 -------------------------
 -- Parsing and running --
 -------------------------
@@ -8,30 +6,36 @@
 local function get_modify_self(pos, itbl, send_warning, settings)
 	local max_code_len = settings.modify_self_max_code_len
 	return function(code)
-		if type(code)~="string" then send_warning("Code in modify_self is the wrong type!") return end
-		if #code>=max_code_len then send_warning("Code in modify_self is too large!") return end
-		table.insert(itbl,{
+		if type(code) ~= "string" then
+			send_warning("Code in modify_self is the wrong type!")
+			return
+		end
+		if #code >= max_code_len then
+			send_warning("Code in modify_self is too large!")
+			return
+		end
+		table.insert(itbl, {
 			function(ret)
 				local meta = ret.get_meta(ret.pos)
-				ret.reset_formspec(meta,ret.code)
+				ret.reset_formspec(meta, ret.code)
 				meta:set_int("luac_id", math.random(1, 65535))
-				meta:set_int("has_modified_code",1)
+				meta:set_int("has_modified_code", 1)
 			end,
 			{
-				pos=pos,code=code
+				pos = pos, code = code
 			}
 		})
-        debug.sethook()
-		error("Changing code... (don't worry about it :p)",2)
+		debug.sethook()
+		error("Changing code... (don't worry about it :p)", 2)
 	end
 end
 
 local function get_clearterm(pos, itbl)
 	return function()
-		table.insert(itbl,{
-			function(ret) ret.get_meta(ret.pos):set_string("print","") end,
+		table.insert(itbl, {
+			function(ret) ret.get_meta(ret.pos):set_string("print", "") end,
 			{
-				pos=pos
+				pos = pos
 			}
 		})
 	end
@@ -43,30 +47,34 @@ local function get_safe_print(pos, itbl)
 		local sandbox = string_meta.__index
 		string_meta.__index = string -- Leave string sandbox temporarily
 		-- i get why that wasn't sandboxed now... i couldnt do print(_G) because "string.find: 'plain' (fourth parameter) must always be true in a Luacontroller"
-		if type(text_to_print)~="string" then 
-			text_to_print=dump(text_to_print) -- if ya print too much tables ya time out
+		-- edit i am freckin dumb, it was sandboxed for security afterall
+		-- since you cuold override "":sub i think or something
+
+
+		if type(text_to_print) ~= "string" then
+			text_to_print = dump(text_to_print) -- if ya print too much tables ya time out
 		end
-		if text_to_print~=nil then
-			table.insert(itbl,{
+		if text_to_print ~= nil then
+			table.insert(itbl, {
 				function(ret)
 					local meta = ret.get_meta(ret.pos)
 					local oldtext = meta:get_string("print")
-					if oldtext==nil then oldtext="" end
-					local newtext=string.sub(oldtext.."\n"..ret.text_to_print,-50000,-1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
-					meta:set_string("print",newtext)
-				end,{
-					text_to_print=text_to_print,
-					pos=pos,
-				}
+					if oldtext == nil then oldtext = "" end
+					local newtext = string.sub(oldtext .. "\n" .. ret.text_to_print, -50000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
+					meta:set_string("print", newtext)
+				end, {
+				text_to_print = text_to_print,
+				pos = pos,
 			}
-		)
-		string_meta.__index = sandbox -- Restore string sandbox
+			}
+			)
+			string_meta.__index = sandbox -- Restore string sandbox
 		end
 	end
 end
 
 local function safe_date()
-	return(os.date("*t",os.time()))
+	return (os.date("*t", os.time()))
 end
 
 -- string.rep(str, n) with a high value for n can be used to DoS
@@ -110,10 +118,10 @@ get_interrupt = function(pos, itbl, send_warning)
 		if type(time) ~= "number" then error("Delay must be a number") end
 		if iid ~= nil then send_warning("Interrupt IDs are disabled on this server") end
 		table.insert(itbl, {
-            function(ret) minetest.get_node_timer(ret.pos):start(ret.time) end,
-        {
-            pos=pos,time=time
-        }})
+			function(ret) minetest.get_node_timer(ret.pos):start(ret.time) end,
+			{
+				pos = pos, time = time
+			} })
 	end)
 end
 
@@ -122,17 +130,15 @@ end
 local function clean_and_weigh_digiline_message(msg, back_references, clean_and_weigh_digiline_message)
 	local t = type(msg)
 	if t == "string" then
-
 		return msg, #msg + 25
-	elseif t == "number" and msg == msg then 
+	elseif t == "number" and msg == msg then
 		-- Doesn't let NaN thru, this was done because like...
-		-- nobody checks for nan, and that can lead to pretty funny behaviour, see https://github.com/BuckarooBanzay/digibuilder/issues/20 and 
+		-- nobody checks for nan, and that can lead to pretty funny behaviour, see https://github.com/BuckarooBanzay/digibuilder/issues/20 and
 
 		return msg, 8
 	elseif t == "boolean" then
 		return msg, 1
 	elseif t == "table" then
-
 		back_references = back_references or {}
 		local bref = back_references[msg]
 		if bref then
@@ -182,12 +188,16 @@ local function get_digiline_send(pos, itbl, send_warning, luac_id, chan_maxlen, 
 		end
 
 		table.insert(itbl, {
-			function (ret)
-				ret.mesecon_queue:add_action(ret.pos, "lc_digiline_relay", {ret.channel, ret.luac_id, ret.msg})
-			end,{
-				luac_id=luac_id, pos=pos, msg=msg, channel=channel -- mesecon_queue gets automatically provided
-				,is_digiline=true
-			}}
+			function(ret)
+				ret.mesecon_queue:add_action(ret.pos, "lc_digiline_relay", { ret.channel, ret.luac_id, ret.msg })
+			end, {
+			luac_id = luac_id,
+			pos = pos,
+			msg = msg,
+			channel = channel -- mesecon_queue gets automatically provided
+			,
+			is_digiline = true
+		} }
 		)
 		return true
 	end
@@ -197,10 +207,10 @@ end
 local safe_globals = {
 	"assert", "error", "ipairs", "next", "pairs", "select",
 	"tonumber", "tostring", "type", "unpack", "_VERSION"
-    -- if you are feeling funny add "minetest" to this
-    -- also dont add pcall/xpcall... bad idea
-    -- i heard there was a implementation for safe pcall/xpcall though, you can go dig it up if you want
-    -- i aint riskin no thing though
+	-- if you are feeling funny add "minetest" to this
+	-- also dont add pcall/xpcall... bad idea
+	-- i heard there was a implementation for safe pcall/xpcall though, you can go dig it up if you want
+	-- i aint riskin no thing though
 }
 
 
@@ -211,24 +221,23 @@ local create_environment_imports = {
 	get_safe_print = get_safe_print,
 	get_clearterm = get_clearterm,
 	get_modify_self = get_modify_self,
-    get_interrupt = get_interrupt,
-    get_digiline_send = get_digiline_send,
-    clean_and_weigh_digiline_message = clean_and_weigh_digiline_message,
-    safe_date = safe_date,
-    safe_globals = safe_globals,
+	get_interrupt = get_interrupt,
+	get_digiline_send = get_digiline_send,
+	clean_and_weigh_digiline_message = clean_and_weigh_digiline_message,
+	safe_date = safe_date,
+	safe_globals = safe_globals,
 
 }
 
 
 local function create_environment(pos, mem, event, itbl, async_env, imports, send_warning, dynamic_values)
-
 	local env = {
 		pos = pos,
 		event = event,
 		mem = mem,
 		heat = async_env.heat,
 		heat_max = async_env.settings.overheat_max, -- sorta there just for compatibility
-		get_code_events = function() 
+		get_code_events = function()
 			return dynamic_values.events
 		end,
 		get_ram_usage = function()
@@ -238,7 +247,9 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 		clearterm = imports.get_clearterm(pos, itbl),
 		modify_self = imports.get_modify_self(pos, itbl, send_warning, async_env.settings),
 		interrupt = imports.get_interrupt(pos, itbl, send_warning),
-		digiline_send = imports.get_digiline_send(pos, itbl, send_warning, async_env.luac_id, async_env.settings.channel_maxlen, async_env.settings.message_maxlen, imports.clean_and_weigh_digiline_message),
+		digiline_send = imports.get_digiline_send(pos, itbl, send_warning, async_env.luac_id,
+			async_env.settings.channel_maxlen, async_env.settings.message_maxlen,
+			imports.clean_and_weigh_digiline_message),
 		string = {
 			byte = string.byte,
 			char = string.char,
@@ -316,8 +327,10 @@ local function create_environment(pos, mem, event, itbl, async_env, imports, sen
 	for _, name in pairs(imports.safe_globals) do
 		env[name] = _G[name]
 	end
-	
 
+	if async_env.settings.env_plus then
+		async_controller_async.env_plus.apply_env_plus(pos, mem, event, itbl, async_env, env)
+	end
 	return env
 end
 
