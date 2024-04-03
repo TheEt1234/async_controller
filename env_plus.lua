@@ -35,7 +35,7 @@ local HARDCODED_SANE_STRING_LENGTH = 64000
 local function limit_string_length(f, alternative_string_length)
     return function(...)
         local string_length = alternative_string_length or HARDCODED_SANE_STRING_LENGTH
-        for k, v in ipairs(table.pack({})) do
+        for k, v in ipairs(table.pack(...)) do
             if type(v) == "string" then
                 assert(#v < string_length, "String too long!")
             end
