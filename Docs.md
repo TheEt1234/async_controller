@@ -38,3 +38,52 @@
 - You can't send 2 000 messages at that digistuff noteblock to blow people's ears off, *by default* it will only send 150 per event
 - When an error occurs, the traceback is provided
 - You can see memory errors now
+
+
+# env_plus
+- An experimental, way more powerful environment, *disabled by default*
+
+  Functions in this environment are limited in theese ways:
+
+  1) string sandbox gets escaped in functions that don't execute arbitrary user input/functions
+  2) arguments get checked for string length, if it exceeds 64000 it will error
+  3) if the hook dies (from timeout?) it will throw an error
+
+  Here is the stuff:
+  ## minetest
+    - **Some things may not be functions but values**
+    - `get_game_info = minetest.get_game_info() -- removes path from the output`
+    - `is_singleplayer = minetest.is_singleplayer()`
+    - `features = minetest.features`
+    - `get_version = minetest.get_version()`
+    - `sha1 = minetest.sha1`
+    - `sha256 = minetest.sha256`
+    - `colorspec_to_colorstring = minetest.colorspec_to_colorstring`
+    - `colorspec_to_bytes = minetest.colorspec_to_bytes`
+
+    - `urlencode = minetest.urlencode`
+    - `formspec_escape = minetest.formspec_escape`
+
+    - `explode_scrollbar_event = minetest.explode_scrollbar_event`
+    - `explode_table_event = explode_table_event`
+    - `explode_textlist_event = minetest.explode_textlist_event`
+
+    - `inventorycube = minetest.inventorycube`
+
+    - `serialize = minetest.serialize`
+    - `deserialize = minetest.deserialize`
+
+    - `compress = minetest.compress`
+    - `decompress = minetest.decompress`
+
+    - `rgba = minetest.rgba`
+
+    - `encode_base64 = minetest.encode_base64`
+    - `decode_base64 = minetest.decode_base64`
+    - `encode_png = minetest.encode_png `
+  ## Things outside of minetest
+    - `bit = table.copy(bit)`
+    - `pcall = safe.pcall`
+    - `xpcall = safe.xpcall`
+    - `vector = table.copy(vector)`
+    - `loadstring = safe.get_loadstring(env)`
