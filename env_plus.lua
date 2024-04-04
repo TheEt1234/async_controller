@@ -2,29 +2,25 @@
 
 async_controller_async = async_controller_async or {}
 
-function table.pack(...)
-    return { ... } -- need to do a basic polyfill of table.pack because me stupid
-end
+
 
 local safe = {}
 local env_plus = {}
 
-function safe.get_game_info()
-    local info = minetest.get_game_info()
-    info.path = nil
-    -- some 200iq users leave their username as their irl name
-    -- this prevents that from leaking
-    return info
-end
+
 
 local function escape_string_sandbox(f, outside_args) -- someone can override string.rep or string.gsub, thats bad, this makes it so that when "":sub happens it won't call the sandboxed function
-    return function(...)                              -- this is the part that gets exposed to the luacontroller
+    return function(...)
         local string_metatable = getmetatable("")
         local sandbox = string_metatable.__index
         string_metatable.__index = string
 
-        local retvalues = table.pack(f(unpack(outside_args), ...))
-
+        local retvalues
+        if outside_args == nil or #outside_args == 0 then
+            retvalues = { f(...) }
+        else
+            retvalues = { f(unpack(outside_args), ...) }
+        end
         string_metatable.__index = sandbox
         return unpack(retvalues)
     end
@@ -33,19 +29,21 @@ end
 
 local HARDCODED_SANE_STRING_LENGTH = 64000
 local function limit_string_length(f, alternative_string_length)
+    local string_length = alternative_string_length or HARDCODED_SANE_STRING_LENGTH
     return function(...)
-        local string_length = alternative_string_length or HARDCODED_SANE_STRING_LENGTH
-        for k, v in ipairs(table.pack(...)) do
+        for k, v in pairs({ ... }) do
             if type(v) == "string" then
                 assert(#v < string_length, "String too long!")
             end
         end
+
+        return f(...)
     end
 end
 
 local function the_pcall_sandbox(f) -- Detect if the hook is dead, if it is, throw an error, this is how pcall is sandboxed
     return function(...)
-        local retvalues = table.pack(f(...))
+        local retvalues = { f(...) }
 
         if not debug.gethook() then
             error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
@@ -55,13 +53,13 @@ local function the_pcall_sandbox(f) -- Detect if the hook is dead, if it is, thr
 end
 
 function safe.xpcall(f1, f2, ...)
-    local xpcall_stuffs = table.pack(xpcall(f1, function(...)
+    local xpcall_stuffs = { xpcall(f1, function(...)
         if not debug.gethook() then
             error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
         end
 
         return f2(...)
-    end, ...))
+    end, ...) }
 
     if not debug.gethook() then
         error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
@@ -71,7 +69,7 @@ function safe.xpcall(f1, f2, ...)
 end
 
 function safe.pcall(f1, ...)
-    local pcall_stuffs = table.pack(pcall(f1, ...))
+    local pcall_stuffs = { pcall(f1, ...) }
 
     if not debug.gethook() then
         error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
@@ -103,52 +101,73 @@ function safe.get_loadstring(env)
     end
 end
 
+function safe.get_game_info()
+    local info = minetest.get_game_info()
+    info.path = nil
+    -- some 200iq users leave their username as their irl name
+    -- this prevents that from leaking
+    return info
+end
+
+function safe.get_vector()
+    local vector_funcs = table.copy(vector)
+    vector_funcs.metatable = nil
+    return vector_funcs
+end
+
 local function do_sandbox_stuff(f, ...)
     -- THIS SHOULD NOT BE INCLUDED IN STUFF THAT ACCEPTS AND RUNS USER ARBITRARY FUNCTIONS/CODE
-    -- use this for any outside functions, especially ones that manipulate strings
+    -- (due to lack of string sandboxing, a user could get the unsafe version of string.rep for example, and kill the server)
     return the_pcall_sandbox(limit_string_length(escape_string_sandbox(f, { ... })))
 end
 
 function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
     return {
+        arg_test = do_sandbox_stuff(function(...)
+            minetest.debug(dump({ ... }))
+            return #{ ... }
+        end),
         minetest = {
             get_game_info = safe.get_game_info(),
             is_singleplayer = minetest.is_singleplayer(),
             features = minetest.features,
             get_version = minetest.get_version(),
 
-            sha1 = do_sandbox_stuff(minetest.sha1, {}),
-            sha256 = do_sandbox_stuff(minetest.sha256, {}),
+            sha1 = do_sandbox_stuff(minetest.sha1),
+            sha256 = do_sandbox_stuff(minetest.sha256),
 
-            colorspec_to_colorstring = do_sandbox_stuff(minetest.colorspec_to_colorstring, {}),
-            colorspec_to_bytes = do_sandbox_stuff(minetest.colorspec_to_bytes, {}),
+            colorspec_to_colorstring = do_sandbox_stuff(minetest.colorspec_to_colorstring),
+            colorspec_to_bytes = do_sandbox_stuff(minetest.colorspec_to_bytes),
 
-            urlencode = do_sandbox_stuff(minetest.urlencode, {}),
+            urlencode = do_sandbox_stuff(minetest.urlencode),
 
-            formspec_escape = do_sandbox_stuff(minetest.formspec_escape, {}),
+            formspec_escape = do_sandbox_stuff(minetest.formspec_escape),
 
-            explode_scrollbar_event = do_sandbox_stuff(minetest.explode_scrollbar_event, {}),
-            explode_table_event = do_sandbox_stuff(explode_table_event, {}),
-            explode_textlist_event = do_sandbox_stuff(minetest.explode_textlist_event, {}),
+            explode_scrollbar_event = do_sandbox_stuff(minetest.explode_scrollbar_event),
+            explode_table_event = do_sandbox_stuff(explode_table_event),
+            explode_textlist_event = do_sandbox_stuff(minetest.explode_textlist_event),
 
-            inventorycube = do_sandbox_stuff(minetest.inventorycube, {}),
+            inventorycube = do_sandbox_stuff(minetest.inventorycube),
 
-            serialize = do_sandbox_stuff(minetest.serialize, {}),
-            deserialize = do_sandbox_stuff(minetest.deserialize, {}), -- Assumbtion: minetest.deserialize cannot execute *arbitrary* code, if it can, string sandboxing will get tricky, maybe setfenv pcall -> safe.pcall
+            serialize = do_sandbox_stuff(minetest.serialize),
+            deserialize = do_sandbox_stuff(minetest.deserialize),
+            -- Assumbtion: minetest.deserialize cannot execute *arbitrary* code, if it can, string sandboxing will get tricky, maybe setfenv pcall -> safe.pcall
+            -- ok update: its loadstring has the potential to execute bytecode.... and thats like really bad...
+            -- and uh considering that deserialize feels like a super limited pcall(loadstring) maybe its safe to just do that?
 
-            compress = do_sandbox_stuff(minetest.compress, {}),
-            decompress = do_sandbox_stuff(minetest.decompress, {}),
+            compress = do_sandbox_stuff(minetest.compress),
+            decompress = do_sandbox_stuff(minetest.decompress),
 
-            rgba = do_sandbox_stuff(minetest.rgba, {}),
+            rgba = do_sandbox_stuff(minetest.rgba),
 
-            encode_base64 = do_sandbox_stuff(minetest.encode_base64, {}),
-            decode_base64 = do_sandbox_stuff(minetest.decode_base64, {}),
-            encode_png = do_sandbox_stuff(minetest.encode_png, {}),
+            encode_base64 = do_sandbox_stuff(minetest.encode_base64),
+            decode_base64 = do_sandbox_stuff(minetest.decode_base64),
+            encode_png = do_sandbox_stuff(minetest.encode_png),
         },
         bit = table.copy(bit),
         pcall = safe.pcall,
         xpcall = safe.xpcall,
-        vector = table.copy(vector),
+        vector = safe.get_vector(),
 
         loadstring = safe.get_loadstring(env),
 
