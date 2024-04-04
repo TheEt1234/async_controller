@@ -82,30 +82,26 @@ function safe.get_loadstring(env)
     return function(code)
         assert(type(code) == "string", "The code should be string last time i checked")
         assert(#code < HARDCODED_SANE_STRING_LENGTH, "code too long")
-        return function(code)
-            if code:byte(1) == 27 then
-                return nil, "Dont try to sneak in bytecode"
-            end
-            local f, msg = loadstring(code)
-
-            if not f then return nil, msg end
-            setfenv(f, env)
-
-
-            if rawget(_G, "jit") then
-                jit.off(f, true)
-            end
-
-            return f
+        if code:byte(1) == 27 then
+            return nil, "Dont try to sneak in bytecode"
         end
+        local f, msg = loadstring(code)
+
+        if not f then return nil, msg end
+        setfenv(f, env)
+
+
+        if rawget(_G, "jit") then
+            jit.off(f, true)
+        end
+
+        return f
     end
 end
 
 function safe.get_game_info()
     local info = minetest.get_game_info()
     info.path = nil
-    -- some 200iq users leave their username as their irl name
-    -- this prevents that from leaking
     return info
 end
 
