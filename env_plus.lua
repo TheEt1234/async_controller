@@ -80,7 +80,7 @@ end
 
 function safe.get_loadstring(env)
     return function(code)
-        assert(type(code) ~= "string", "The code should be string last time i checked")
+        assert(type(code) == "string", "The code should be string last time i checked")
         assert(#code < HARDCODED_SANE_STRING_LENGTH, "code too long")
         return function(code)
             if code:byte(1) == 27 then
