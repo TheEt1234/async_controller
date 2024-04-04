@@ -121,6 +121,8 @@ local function do_sandbox_stuff(f, ...)
     return the_pcall_sandbox(limit_string_length(escape_string_sandbox(f, { ... })))
 end
 
+
+
 function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
     return {
         arg_test = do_sandbox_stuff(function(...)
@@ -148,12 +150,10 @@ function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
             explode_textlist_event = do_sandbox_stuff(minetest.explode_textlist_event),
 
             inventorycube = do_sandbox_stuff(minetest.inventorycube),
-
+            --[[
             serialize = do_sandbox_stuff(minetest.serialize),
             deserialize = do_sandbox_stuff(minetest.deserialize),
-            -- Assumbtion: minetest.deserialize cannot execute *arbitrary* code, if it can, string sandboxing will get tricky, maybe setfenv pcall -> safe.pcall
-            -- ok update: its loadstring has the potential to execute bytecode.... and thats like really bad...
-            -- and uh considering that deserialize feels like a super limited pcall(loadstring) maybe its safe to just do that?
+            --]]
 
             compress = do_sandbox_stuff(minetest.compress),
             decompress = do_sandbox_stuff(minetest.decompress),
@@ -170,6 +170,9 @@ function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
         vector = safe.get_vector(),
 
         loadstring = safe.get_loadstring(env),
+
+        dump = do_sandbox_stuff(dump),
+        dump2 = do_sandbox_stuff(dump2),
 
     }
 end
