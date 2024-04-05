@@ -1,11 +1,12 @@
 local function print_log_formspec(meta)
 	local print_log = minetest.formspec_escape(meta:get_string("print") or "")
 	local fs = {
-		"size[15,12]",
-		"real_coordinates[true]",
-		"style_type[label,textarea;font=mono;bgcolor=black;textcolor=white]",
-		"textarea[0,0;14.9,12;;;" .. print_log .. "]",
-		"tabheader[0,0;tab;Editor,Print log;2]"
+		"size[12,10]",
+		"style_type[label,textarea;font=mono]",
+		"background[-0.2,-0.25;12.4,10.75;jeija_luac_background.png]",
+		"textarea[0.2,0.2;12.2,9.5;;;" .. print_log .. "]",
+		"image_button_exit[11.72,-0.25;0.425,0.4;jeija_close_window.png;exit;]",
+		"tabheader[0,0;tab;Editor,Print log;2]",
 	}
 	local fs = table.concat(fs, "")
 
