@@ -7,17 +7,29 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 		string_meta.__index = string -- Leave string sandbox temporarily
 		if type(errmsg) ~= "string" then errmsg = "Unknown error of type: " .. type(errmsg) end
 
-		local t = debug.traceback()
-		string_meta.__index = sandbox
-		--[[
-		t=t:split("[C]: in function 'xpcall'")
-		local index = 1
-		if t[index] then return errmsg.."\nTraceback:\n"..t[index]
-		else
-			return errmsg.."\nCould not provide traceback."
+
+		--		local traceback = debug.traceback()
+		local traceback = "Traceback: " .. "\n"
+		local level = 1
+		while true do
+			local info = debug.getinfo(level, "nlS")
+			if not info then break end
+			local name = info.name
+			local text
+			if name ~= nil then
+				text = "In function " .. name
+			else
+				text = "In " .. info.what
+			end
+			if info.source == "=(load)" then
+				traceback = traceback .. text .. " at line " .. info.currentline .. "\n"
+			end
+			level = level + 1
 		end
-		--]]
-		return errmsg .. "\n" .. t
+
+
+		string_meta.__index = sandbox
+		return errmsg .. "\n" .. traceback
 	end
 
 	local function timeout(reason)
@@ -68,8 +80,8 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 					timeout("Execution time reached the " .. tostring(execution_time_limit / 1000) .. "ms limit!")
 				elseif mem_use > max_mem then
 					timeout("Sandbox memory usage exceeded! (limit: " ..
-					max_mem / 1024 ..
-					"mb) if this was due to outside factors im sorry, there is no better way to limit memory i think, if there is please create an issue in the async_controller repo")
+						max_mem / 1024 ..
+						"mb) if this was due to outside factors im sorry, there is no better way to limit memory i think, if there is please create an issue in the async_controller repo")
 				else
 					luacontroller_dynamic_values.events = events
 					luacontroller_dynamic_values.ram_usage = mem_use
