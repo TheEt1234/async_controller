@@ -85,5 +85,6 @@
     - `bit = table.copy(bit)`
     - `pcall = safe.pcall`
     - `xpcall = safe.xpcall`
-    - `vector = table.copy(vector)`
-    - `loadstring = safe.get_loadstring(env)`
+    - `vector = safe.get_vector() -- doesnt have the vector.metatable`
+    - `loadstring = safe.get_loadstring(env) -- doesnt allow bytecode and does other stuff`
+    - `code = code -- is your code`

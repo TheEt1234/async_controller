@@ -176,7 +176,7 @@ local function run_inner(pos, code, event) -- this is the thing that gets called
 	local async_env   = async_controller.env
 	async_env.heat    = heat
 	async_env.luac_id = luac_id -- Why does the formatter do this... i guess i shouldnt question
-
+	async_env.code    = code
 	minetest.handle_async(run_async, run_callback, pos, mem, event, code, async_env)
 end
 

@@ -121,10 +121,8 @@ end
 
 function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
     return {
-        arg_test = do_sandbox_stuff(function(...)
-            minetest.debug(dump({ ... }))
-            return #{ ... }
-        end),
+        code = async_env.code,
+
         minetest = {
             get_game_info = safe.get_game_info(),
             is_singleplayer = minetest.is_singleplayer(),
