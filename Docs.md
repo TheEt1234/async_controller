@@ -1,8 +1,8 @@
 # Features that async_controller lacks 
-- No mesecon I/O - makes things way simpler
+- No mesecon I/O - makes things way simpler, might re-introduce it later
 
 # Enviroment
-*if you are not familiar with the luacontroller environment, you can get started by doing `print(_G)` or by going to* https://mesecons.net/luacontroller - but keep in mind that it is **way too** outdated
+*if you are not familiar with the normal luacontroller environment, you can get started by doing `print(_G)` or by going to* https://mesecons.net/luacontroller - but keep in mind that it is **way too** outdated
 ### Global
 - `pos` - position
 - `print(string)` - prints to the print log
@@ -16,13 +16,13 @@
     - (`server.conf.max_sandbox_mem_size` is usually very big to account for the fact that some things outside of the luac sandbox may be counted)
 - `modify_self(code)`
   - replaces the async controller's code with the code provided to the function
-  - does not make a `program` event, you will need to `interrupt(0.1)` so that the code gets ran
+  - does not make a `program` event, you will need to `interrupt(0)` so that the code gets ran
   - limited to `server.conf.modify_self_max_code_len` characters
   - makes an error to stop any more execution
 
 ### server.*
 - `server.us_time()` - is just `minetest.get_us_time`
-- I might add stuff to this in the future
+- I might add stuff to this in the future, or maybe even remove this
 ### server.conf.* 
  - exposes async_controller related settings: 
  - `code_events_max, heat_max, execution_time_limit, channel_maxlen, message_maxlen, memsize, max_digilines_messages_per_event, modify_self_max_code_len, max_sandbox_mem_size`
@@ -43,11 +43,14 @@
 # env_plus
 - An experimental, way more powerful environment, *disabled by default*
 
-  Functions in this environment are limited in theese ways:
+  (most) functions in this environment are limited in theese ways:
 
   1) string sandbox gets escaped in functions that don't execute arbitrary user input/functions
+      - what this means is that `string.sub = function(...) return "hehe" end` won't matter (i think it would only modify `"a":sub` but still)
   2) arguments get checked for string length, if it exceeds 64000 it will error
-  3) if the hook dies (from timeout?) it will throw an error
+  3) if the hook dies it will throw an error
+      - If the code times out under a pcall, it will catch it and the hook will still get destroyed
+      - So if we detect that the hook is gone, we throw an error
 
   Here is the stuff:
   ## minetest
@@ -60,24 +63,17 @@
     - `sha256 = minetest.sha256`
     - `colorspec_to_colorstring = minetest.colorspec_to_colorstring`
     - `colorspec_to_bytes = minetest.colorspec_to_bytes`
-
     - `urlencode = minetest.urlencode`
     - `formspec_escape = minetest.formspec_escape`
-
     - `explode_scrollbar_event = minetest.explode_scrollbar_event`
     - `explode_table_event = explode_table_event`
     - `explode_textlist_event = minetest.explode_textlist_event`
-
     - `inventorycube = minetest.inventorycube`
-
     - `serialize = minetest.serialize`
     - `deserialize = minetest.deserialize`
-
     - `compress = minetest.compress`
     - `decompress = minetest.decompress`
-
     - `rgba = minetest.rgba`
-
     - `encode_base64 = minetest.encode_base64`
     - `decode_base64 = minetest.decode_base64`
     - `encode_png = minetest.encode_png `
