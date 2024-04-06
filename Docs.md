@@ -60,7 +60,6 @@
     - `features = minetest.features`
     - `get_version = minetest.get_version()`
     - `sha1 = minetest.sha1`
-    - `sha256 = minetest.sha256`
     - `colorspec_to_colorstring = minetest.colorspec_to_colorstring`
     - `colorspec_to_bytes = minetest.colorspec_to_bytes`
     - `urlencode = minetest.urlencode`
@@ -69,10 +68,6 @@
     - `explode_table_event = explode_table_event`
     - `explode_textlist_event = minetest.explode_textlist_event`
     - `inventorycube = minetest.inventorycube`
-    - `serialize = minetest.serialize`
-    - `deserialize = minetest.deserialize`
-    - `compress = minetest.compress`
-    - `decompress = minetest.decompress`
     - `rgba = minetest.rgba`
     - `encode_base64 = minetest.encode_base64`
     - `decode_base64 = minetest.decode_base64`
