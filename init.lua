@@ -31,7 +31,7 @@ async_controller = {
 			modify_self_max_code_len = setting_or_default("async_controller.modify_self_max_code_len", 50000),
 			max_sandbox_mem_size = setting_or_default("async_controller.max_sandbox_mem_size", 50, math.huge),
 			env_plus = setting_or_default("async_controller.env_plus", false)
-		}
+		},
 	}
 }
 
@@ -112,6 +112,8 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	local meta = minetest.get_meta(pos)
 	local code = meta:get_string("code")
 	local time_took = math.abs(time[1] - time[2])
+	minetest.log("action", "[async_controller] Executed sandbox of async_controller at " ..
+		minetest.pos_to_string(pos) .. ", time took: " .. time_took / 1000 .. "ms")
 	local digiline_sends = 0
 	if not ok and itbl ~= nil then
 		-- Execute deferred tasks
@@ -148,7 +150,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 		local meta = minetest.get_meta(pos)
 		local oldtext = meta:get_string("print")
 		if oldtext == nil then oldtext = "" end
-		local newtext = string.sub(oldtext .. "\nErr: " .. errmsg, -50000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
+		local newtext = string.sub(oldtext .. "\nErr: " .. errmsg, -500000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
 		meta:set_string("print", newtext)
 	end
 	if meta:get_int("has_modified_code") == 0 or meta:get_int("has_modified_code") == nil then

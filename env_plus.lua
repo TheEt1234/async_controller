@@ -130,7 +130,7 @@ function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
             get_version = minetest.get_version(),
 
             sha1 = do_sandbox_stuff(minetest.sha1),
-            sha256 = do_sandbox_stuff(minetest.sha256),
+            --sha256 = do_sandbox_stuff(minetest.sha256), -- https://github.com/minetest/minetest/commit/762fca538c6a7a813e3f1ee10ce146bef1672dce only in 5.9.0 i think, thus, too lazy to test it
 
             colorspec_to_colorstring = do_sandbox_stuff(minetest.colorspec_to_colorstring),
             colorspec_to_bytes = do_sandbox_stuff(minetest.colorspec_to_bytes),
@@ -147,11 +147,12 @@ function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
             --[[
             serialize = do_sandbox_stuff(minetest.serialize),
             deserialize = do_sandbox_stuff(minetest.deserialize),
-            --]]
+            --]] -- allows executing pesky bytecode i believe
 
+            --[[
             compress = do_sandbox_stuff(minetest.compress),
             decompress = do_sandbox_stuff(minetest.decompress),
-
+            --]] -- verified to be unsafe, allows spamming of chat (minetest.log) and spamming of console
             rgba = do_sandbox_stuff(minetest.rgba),
 
             encode_base64 = do_sandbox_stuff(minetest.encode_base64),

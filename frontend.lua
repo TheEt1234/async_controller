@@ -7,11 +7,15 @@ local function print_log_formspec(meta)
 		"textarea[0.2,0.2;12.2,9.5;;;" .. print_log .. "]",
 		"image_button_exit[11.72,-0.25;0.425,0.4;jeija_close_window.png;exit;]",
 		"tabheader[0,0;tab;Editor,Print log;2]",
+		"field[0.2,9;11.5,0;term;;]",
+		"button[11.2,7.4;1,3;term_send;Send]",
+		"field_close_on_enter[term;false]"
 	}
 	local fs = table.concat(fs, "")
 
 	meta:set_string("formspec", fs)
 end
+
 local function reset_formspec(meta, code, errmsg)
 	local code = code
 	local errmsg = errmsg
@@ -50,6 +54,14 @@ local function on_receive_fields(pos, _, fields, sender)
 		return
 	end
 	local meta = minetest.get_meta(pos)
+	if fields.term and fields.term_send then
+		async_controller.env.run(pos, {
+			type = "terminal",
+			text = fields.term,
+		})
+	end
+
+
 	if fields.program then
 		async_controller.env.set_program(pos, fields.code)
 	elseif fields.tab then
