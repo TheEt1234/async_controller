@@ -25,8 +25,6 @@ local function get_modify_self(pos, itbl, send_warning, settings)
 				pos = pos, code = code
 			}
 		})
-		debug.sethook()
-		error("Changing code... (don't worry about it :p)", 2)
 	end
 end
 
@@ -65,11 +63,9 @@ local function get_safe_print(pos, itbl)
 				end, {
 				text_to_print = text_to_print,
 				pos = pos,
-			}
-			}
-			)
-			string_meta.__index = sandbox -- Restore string sandbox
+			} })
 		end
+		string_meta.__index = sandbox -- Restore string sandbox
 	end
 end
 
