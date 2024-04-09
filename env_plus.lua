@@ -48,6 +48,13 @@ local function the_pcall_sandbox(f) -- Detect if the hook is dead, if it is, thr
         if not debug.gethook() then
             error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
         end
+
+        local string_meta = getmetatable("")
+
+        if string_meta.__index == string then
+            error("String sandbox went poof, Please report this as a bug!")
+        end
+
         return unpack(retvalues)
     end
 end
@@ -58,11 +65,23 @@ function safe.xpcall(f1, f2, ...)
             error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
         end
 
+        local string_meta = getmetatable("")
+
+        if string_meta.__index == string then
+            error("String sandbox went poof, Please report this as a bug!")
+        end
+
         return f2(...)
     end, ...) }
 
     if not debug.gethook() then
         error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
+    end
+
+    local string_meta = getmetatable("")
+
+    if string_meta.__index == string then
+        error("String sandbox went poof, Please report this as a bug!")
     end
 
     return unpack(xpcall_stuffs)
@@ -73,6 +92,12 @@ function safe.pcall(f1, ...)
 
     if not debug.gethook() then
         error("The hook went poof (timeout caught by pcall?)... cannot continue execution", 2)
+    end
+
+    local string_meta = getmetatable("")
+
+    if string_meta.__index == string then
+        error("String sandbox went poof, Please report this as a bug!")
     end
 
     return unpack(pcall_stuffs)
@@ -114,7 +139,7 @@ end
 local function do_sandbox_stuff(f, ...)
     -- THIS SHOULD NOT BE INCLUDED IN STUFF THAT ACCEPTS AND RUNS USER ARBITRARY FUNCTIONS/CODE
     -- (due to lack of string sandboxing, a user could get the unsafe version of string.rep for example, and kill the server)
-    return the_pcall_sandbox(limit_string_length(escape_string_sandbox(f, { ... })))
+    return the_pcall_sandbox(escape_string_sandbox(limit_string_length(f), { ... }))
 end
 
 

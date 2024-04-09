@@ -1,10 +1,11 @@
 local function create_sandbox(code, env, async_env, luacontroller_dynamic_values)
 	local function traceback(...)
+		local MP = minetest.get_modpath("async_controller")
 		local args = { ... }
 		local errmsg = args[1]
 		local string_meta = getmetatable("")
-		local sandbox = string_meta.__index
-		string_meta.__index = string -- Leave string sandbox temporarily
+		local _sandbox = string_meta.__index
+		string_meta.__index = string -- Leave string sandbox permanently
 		if type(errmsg) ~= "string" then errmsg = "Unknown error of type: " .. type(errmsg) end
 
 
@@ -27,9 +28,8 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 			level = level + 1
 		end
 
-
-		string_meta.__index = sandbox
-		return errmsg .. "\n" .. traceback
+		local base = MP:sub(1, #errmsg - #MP)
+		return errmsg:gsub(base, "", 1) .. "\n" .. traceback
 	end
 
 	local function timeout(reason)

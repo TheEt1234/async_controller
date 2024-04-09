@@ -35,6 +35,6 @@ Code:
 - LGPLv3
 
 Media:
-- textures/*
+- textures/jeija* and async_controller_burnt_top.png, async_controller_top.png
   - CC-BY-SA 3.0 https://github.com/minetest-mods/mesecons/tree/master/mesecons_luacontroller/textures
-  - most of them were modified
+  - the ones starting with async_controller were modified

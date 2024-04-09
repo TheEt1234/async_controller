@@ -75,38 +75,82 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 		warning = "Warning: " .. str
 	end
 
+	local time = minetest.get_us_time
+
 	local itbl = {}
-	local start_time = minetest.get_us_time()
+	local start_time = time()
 	local env = async_env.create_environment(pos, mem, event, itbl, async_env, async_env.create_environment_imports,
 		send_warning, async_env.luacontroller_dynamic_values)
 	if not env then
 		return false, "Env does not exist. Controller has been moved?", async_env.remove_functions(mem), pos,
-			itbl, { start_time, minetest.get_us_time() }
+			itbl, { start_time, time() }
 	end
 
-	local success, msg
+
 	-- Create the sandbox and execute code
-	local f
-	f, msg = async_env.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
+
+	local f, msg = async_env.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
 	if not f then
-		return false, msg, async_env.remove_functions(env.mem), pos, itbl,
-			{ start_time, minetest.get_us_time() }
+		return false, msg, async_env.remove_functions(env.mem), pos, itbl, { start_time, time() }
 	end
 
 	-- Start string true sandboxing
 	local onetruestring = getmetatable("")
-	-- If a string sandbox is already up yet inconsistent, something is very wrong
-	-- hey random mesecon dev that typed out that comment, in what cases does that actually happen
-	assert(onetruestring.__index == string)
-	onetruestring.__index = env.string
-	success, msg = pcall(f)
-	onetruestring.__index = string
 
-	local end_time = minetest.get_us_time()
+	-- If a string sandbox is already up yet inconsistent, something is very wrong
+	-- hey mesecon dev that typed out that comment, in what cases can that actually happen
+
+	assert(onetruestring.__index == string, "Something went horribly wrong with the string sandboxing")
+
+	onetruestring.__index = env.string
+
+
+	local success, msg = pcall(f)
+	onetruestring.__index = string
 	-- End string true sandboxing
 
-	if not success then return false, msg, async_env.remove_functions(env.mem), pos, itbl, { start_time, end_time } end
-	return false, warning, async_env.remove_functions(env.mem), pos, itbl, { start_time, end_time }
+	return success, msg or warning, async_env.remove_functions(env.mem), pos, itbl, { start_time, time() }
+end
+
+local function exec_itbl(itbl)
+	local ok, errmsg
+
+	local digiline_sends = 0
+	for _, v in ipairs(itbl) do
+		if type(v) == "function" then
+			local failure = v()
+			if failure then
+				ok = false
+				errmsg = failure
+				break
+			end
+		elseif type(v) == "table" then
+			local func = v[1]
+			local args = v[2]
+			if args.is_digiline then
+				digiline_sends = digiline_sends + 1
+			end
+
+			if digiline_sends >= async_controller.env.settings.max_digilines_messages_per_event then
+				errmsg = "Warning: You've sent too many digilines messages in an event, only sending " ..
+					async_controller.env.settings.max_digilines_messages_per_event
+			end
+
+			if args.is_digiline == false or digiline_sends <= async_controller.env.settings.max_digilines_messages_per_event then
+				args.mesecon_queue = mesecon.queue
+				args.get_meta = minetest.get_meta
+				args.reset_formspec = async_controller.env.reset_formspec
+				local failure = func(args)
+				if failure then
+					ok = false
+					errmsg = failure
+					break
+				end
+			end
+		end
+	end
+
+	return ok, errmsg
 end
 
 local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thing that gets called AFTER the luac executes
@@ -114,41 +158,17 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	local code = meta:get_string("code")
 	local time_took = math.abs(time[1] - time[2])
 
-	if async_controller.env.debug_mode then -- chill down on the spam
-		minetest.log("action", "[async_controller] Executed sandbox of async_controller at " ..
-			minetest.pos_to_string(pos) .. ", time took: " .. time_took / 1000 .. "ms")
-	end
 	local digiline_sends = 0
-	if not ok and itbl ~= nil then
+	if itbl ~= nil then
 		-- Execute deferred tasks
-		for _, v in ipairs(itbl) do
-			if type(v) ~= "table" then
-				local failure = v()
-				if failure then
-					ok = false
-					errmsg = failure
-				end
-			else
-				local func = v[1]
-				local args = v[2]
-				if args.is_digiline then
-					digiline_sends = digiline_sends + 1
-				end
-				if args.is_digiline == false or digiline_sends <= async_controller.env.settings.max_digilines_messages_per_event then
-					args.mesecon_queue = mesecon.queue
-					args.get_meta = minetest.get_meta
-					args.reset_formspec = async_controller.env.reset_formspec
-					local failure = func(args)
-					if failure then
-						ok = false
-						errmsg = failure
-					end
-				end
-			end
-		end
-		ok = true
-		errmsg = errmsg
+		local new_ok, new_errmsg = exec_itbl(itbl)
+
+		ok = ok or new_ok
+		errmsg = errmsg or new_errmsg
 	end
+
+
+	--[[
 	if errmsg ~= nil and errmsg ~= "" then
 		if type(errmsg) ~= "string" then errmsg = dump(errmsg) end
 		local meta = minetest.get_meta(pos)
@@ -157,6 +177,7 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 		local newtext = string.sub(oldtext .. "\nErr: " .. errmsg, -500000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
 		meta:set_string("print", newtext)
 	end
+	--]]
 	if meta:get_int("has_modified_code") == 0 or meta:get_int("has_modified_code") == nil then
 		if not ok then
 			reset_meta(pos, code, errmsg)
@@ -166,7 +187,13 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	else
 		meta:set_int("has_modified_code", 0)
 	end
+
 	async_controller.env.save_memory(pos, minetest.get_meta(pos), mem)
+
+	if async_controller.env.debug_mode then -- chill down on the spam
+		minetest.log("action", "[async_controller] Executed sandbox of async_controller at " ..
+			minetest.pos_to_string(pos) .. ", time took: " .. time_took / 1000 .. "ms")
+	end
 end
 
 
