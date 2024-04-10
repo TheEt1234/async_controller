@@ -93,7 +93,7 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 
 	local f, msg = async_controller_async.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
 	if not f then
-		return false, msg, async_env.rfuncs(env.mem), pos, itbl, { start_time, time() }
+		return false, msg, rfuncs(env.mem), pos, itbl, { start_time, time() }
 	end
 
 	-- Start string true sandboxing
