@@ -194,11 +194,11 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	-- TODO: run under some sort of ratelimiter
 	async_controller.env.save_memory(pos, minetest.get_meta(pos), mem)
 
-	if async_controller.env.debug_mode then
+	if async_controller.env.settings.debug_mode then
 		minetest.log("action", "[async_controller] <async> Executed sandbox of async_controller at " ..
 			minetest.pos_to_string(pos) ..
 			", time took: " ..
-			time_took / 1000 .. "ms + <sync> callback took " .. (time() - callback_time) / 1000 .. "ms")
+			time_took / 1000 .. "ms + <sync> callback took " .. (minetest.get_us_time() - callback_time) / 1000 .. "ms")
 	end
 end
 
