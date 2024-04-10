@@ -1,9 +1,4 @@
 -- Optional environment that can be enabled in the server's config
-
-async_controller_async = async_controller_async or {}
-
-
-
 local safe = {}
 local env_plus = {}
 
@@ -149,6 +144,7 @@ function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
         code = async_env.code,
 
         minetest = {
+            get_us_time = minetest.get_us_time, -- nothing really worrysome here
             get_game_info = safe.get_game_info(),
             is_singleplayer = minetest.is_singleplayer(),
             features = minetest.features,

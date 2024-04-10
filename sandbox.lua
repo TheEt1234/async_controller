@@ -1,42 +1,38 @@
-local function create_sandbox(code, env, async_env, luacontroller_dynamic_values)
-	local function traceback(...)
-		local MP = minetest.get_modpath("async_controller")
-		local args = { ... }
-		local errmsg = args[1]
-		local string_meta = getmetatable("")
-		local _sandbox = string_meta.__index
-		string_meta.__index = string -- Leave string sandbox permanently
-		if type(errmsg) ~= "string" then errmsg = "Unknown error of type: " .. type(errmsg) end
+local function traceback(...)
+	local MP = minetest.get_modpath("async_controller")
+	local args = { ... }
+	local errmsg = tostring(args[1])
+	local string_meta = getmetatable("")
+	string_meta.__index = string -- Leave string sandbox permanently
 
-
-		--		local traceback = debug.traceback()
-		local traceback = "Traceback: " .. "\n"
-		local level = 1
-		while true do
-			local info = debug.getinfo(level, "nlS")
-			if not info then break end
-			local name = info.name
-			local text
-			if name ~= nil then
-				text = "In function " .. name
-			else
-				text = "In " .. info.what
-			end
-			if info.source == "=(load)" then
-				traceback = traceback .. text .. " at line " .. info.currentline .. "\n"
-			end
-			level = level + 1
+	local traceback = "Traceback: " .. "\n"
+	local level = 1
+	while true do
+		local info = debug.getinfo(level, "nlS")
+		if not info then break end
+		local name = info.name
+		local text
+		if name ~= nil then
+			text = "In function " .. name
+		else
+			text = "In " .. info.what
 		end
-
-		local base = MP:sub(1, #errmsg - #MP)
-		return errmsg:gsub(base, "", 1) .. "\n" .. traceback
+		if info.source == "=(load)" then
+			traceback = traceback .. text .. " at line " .. info.currentline .. "\n"
+		end
+		level = level + 1
 	end
 
-	local function timeout(reason)
-		debug.sethook() -- Clear hook
-		error("Code timed out! Reason: " .. reason, 2)
-	end
+	local base = MP:sub(1, #errmsg - #MP)
+	return errmsg:gsub(base, "", 1) .. "\n" .. traceback
+end
 
+local function timeout(reason)
+	debug.sethook() -- Clear hook, the only place that needs it i think
+	error("Code timed out! Reason: " .. reason, 2)
+end
+
+local function create_sandbox(code, env, async_env, luacontroller_dynamic_values)
 	if code:byte(1) == 27 then
 		return nil, "Binary code prohibited."
 	end
@@ -46,9 +42,7 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 	setfenv(f, env)
 
 	-- turn JIT off for the lua code for count events
-	-- *sadly* this has to be done, because an attacker could literally just do for i=1,1000000 do end and it would just not trigger any event
-	-- or does it
-	-- well... i will try
+	-- *sadly* this has to be done, because someone could literally just do for i=1,1000000 do end and it would just not trigger the debug hook
 
 
 	if rawget(_G, "jit") then
@@ -59,7 +53,7 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 	local time = minetest.get_us_time
 	local old = time()
 	local hook_time = async_env.settings.hook_time
-	local maxevents = async_env.settings.maxevents
+	local instruction_limit = async_env.settings.maxevents
 	-- perhaps the shittiest way of limiting memory... pls submit an issue or a pr if you have a better idea :D
 	-- The main issue with it is outside influence
 	-- which would make the async_controller unreliable
@@ -74,8 +68,8 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 				local mem_cur = collectgarbage("count")
 				local mem_use = mem_cur - mem_old
 				events = events + hook_time
-				if events >= maxevents then
-					timeout("Too many code events! (limit: " .. maxevents .. ")")
+				if events >= instruction_limit then
+					timeout("Instruction limit exceeded! (limit: " .. instruction_limit .. ")")
 				elseif time_use >= execution_time_limit then
 					timeout("Execution time reached the " .. tostring(execution_time_limit / 1000) .. "ms limit!")
 				elseif mem_use > max_mem then
@@ -95,4 +89,4 @@ local function create_sandbox(code, env, async_env, luacontroller_dynamic_values
 		return ret
 	end
 end
-async_controller.env.create_sandbox = create_sandbox
+async_controller_async.create_sandbox = create_sandbox

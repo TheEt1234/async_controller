@@ -36,19 +36,21 @@ async_controller = {
 	}
 }
 
+local function pass_down_to_async(thing, name)
+	minetest.handle_async(function(thing, name)
+		if not rawget(_G, "async_controller_async") then async_controller_async = {} end -- we use rawget here or minetest would warn us because undefined global
+		async_controller_async[name] = thing
+	end, function() end, thing, name)
+end
+
+pass_down_to_async(async_controller.env.settings, "settings") -- hopefully this works
 
 local MP = minetest.get_modpath("async_controller")
 
--- TODO: minetest.register_async_dofile instead of that "solution"
--- this will make the code overall a LOT simple but would be a lot of work
-
--- currently, in the process of migration
--- it just introduces more confusion...
-
+minetest.register_async_dofile(MP .. "/async_init.lua")
 minetest.register_async_dofile(MP .. "/env_plus.lua")
-
-dofile(MP .. "/env.lua")
-dofile(MP .. "/sandbox.lua")
+minetest.register_async_dofile(MP .. "/env.lua")
+minetest.register_async_dofile(MP .. "/sandbox.lua")
 dofile(MP .. "/misc.lua")
 dofile(MP .. "/frontend.lua")
 
@@ -56,7 +58,6 @@ local function reset_meta(pos, code, errmsg)
 	local meta = minetest.get_meta(pos)
 	async_controller.env.reset_formspec(meta, code, errmsg)
 	meta:set_int("luac_id", math.random(1, 65535))
-	meta:set_string("print", "")
 end
 
 
@@ -79,8 +80,8 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 
 	local itbl = {}
 	local start_time = time()
-	local env = async_env.create_environment(pos, mem, event, itbl, async_env, async_env.create_environment_imports,
-		send_warning, async_env.luacontroller_dynamic_values)
+	local env = async_controller_async.create_environment(pos, mem, event, itbl, async_env, send_warning,
+		async_env.luacontroller_dynamic_values)
 	if not env then
 		return false, "Env does not exist. Controller has been moved?", async_env.remove_functions(mem), pos,
 			itbl, { start_time, time() }
@@ -89,7 +90,7 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 
 	-- Create the sandbox and execute code
 
-	local f, msg = async_env.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
+	local f, msg = async_controller_async.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
 	if not f then
 		return false, msg, async_env.remove_functions(env.mem), pos, itbl, { start_time, time() }
 	end
@@ -98,12 +99,9 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 	local onetruestring = getmetatable("")
 
 	-- If a string sandbox is already up yet inconsistent, something is very wrong
-	-- hey mesecon dev that typed out that comment, in what cases can that actually happen
-
 	assert(onetruestring.__index == string, "Something went horribly wrong with the string sandboxing")
 
 	onetruestring.__index = env.string
-
 
 	local success, msg = pcall(f)
 	onetruestring.__index = string
@@ -158,26 +156,30 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 	local code = meta:get_string("code")
 	local time_took = math.abs(time[1] - time[2])
 
-	local digiline_sends = 0
+	local callback_time = minetest.get_us_time()
+
 	if itbl ~= nil then
 		-- Execute deferred tasks
 		local new_ok, new_errmsg = exec_itbl(itbl)
 
-		ok = ok or new_ok
-		errmsg = errmsg or new_errmsg
+		if ok == true and new_ok == false then
+			ok = false
+		end
+
+		if errmsg == "" and not (new_errmsg == "" or new_errmsg == nil) and type(errmsg) == "string" then
+			errmsg = new_errmsg
+		end
 	end
 
-
-	--[[
 	if errmsg ~= nil and errmsg ~= "" then
-		if type(errmsg) ~= "string" then errmsg = dump(errmsg) end
+		local errmsg = tostring(errmsg)
 		local meta = minetest.get_meta(pos)
-		local oldtext = meta:get_string("print")
-		if oldtext == nil then oldtext = "" end
-		local newtext = string.sub(oldtext .. "\nErr: " .. errmsg, -500000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74 this time its 50k chars before ya cant print
+		local oldtext = meta:get_string("print") or " "
+		local newtext = string.sub(oldtext .. "\nErr: " .. errmsg, -100000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74
 		meta:set_string("print", newtext)
 	end
-	--]]
+
+
 	if meta:get_int("has_modified_code") == 0 or meta:get_int("has_modified_code") == nil then
 		if not ok then
 			reset_meta(pos, code, errmsg)
@@ -188,11 +190,14 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 		meta:set_int("has_modified_code", 0)
 	end
 
+	-- TODO: run under some sort of ratelimiter
 	async_controller.env.save_memory(pos, minetest.get_meta(pos), mem)
 
-	if async_controller.env.debug_mode then -- chill down on the spam
-		minetest.log("action", "[async_controller] Executed sandbox of async_controller at " ..
-			minetest.pos_to_string(pos) .. ", time took: " .. time_took / 1000 .. "ms")
+	if async_controller.env.debug_mode then
+		minetest.log("action", "[async_controller] <async> Executed sandbox of async_controller at " ..
+			minetest.pos_to_string(pos) ..
+			", time took: " ..
+			time_took / 1000 .. "ms + <sync> callback took " .. (time() - callback_time) / 1000 .. "ms")
 	end
 end
 
@@ -208,7 +213,7 @@ local function run_inner(pos, code, event) -- this is the thing that gets called
 	local luac_id     = meta:get_int("luac_id")
 	local async_env   = async_controller.env
 	async_env.heat    = heat
-	async_env.luac_id = luac_id -- Why does the formatter do this... i guess i shouldnt question
+	async_env.luac_id = luac_id
 	async_env.code    = code
 	minetest.handle_async(run_async, run_callback, pos, mem, event, code, async_env)
 end
@@ -223,6 +228,7 @@ end
 
 
 local function set_program(pos, code)
+	minetest.get_meta(pos):set_string("print", "")
 	reset_meta(pos, code)
 
 	if minetest.get_node(pos).name == BASENAME then
@@ -279,8 +285,7 @@ local digiline = {
 	receptor = {},
 	effector = {
 		action = function(pos, _, channel, msg)
-			msg = async_controller.env.clean_and_weigh_digiline_message(msg, nil,
-				async_controller.env.clean_and_weigh_digiline_message)
+			msg = async_controller.env.clean_and_weigh_digiline_message(msg, nil)
 			run(pos, { type = "digiline", channel = channel, msg = msg })
 		end
 	}
