@@ -19,11 +19,10 @@
   - does not make a `program` event, you will need to `interrupt(0)` so that the code gets ran
   - limited to `server.conf.modify_self_max_code_len` characters
   - makes an error to stop any more execution
+  - *may get removed in the future in favour of env_plus's loadstring*
 
-### server.*
-- `server.us_time()` - is just `minetest.get_us_time`
-- I might add stuff to this in the future, or maybe even remove this
-### server.conf.* 
+
+### conf 
  - exposes async_controller related settings: 
  - `code_events_max, heat_max, execution_time_limit, channel_maxlen, message_maxlen, memsize, max_digilines_messages_per_event, modify_self_max_code_len, max_sandbox_mem_size`
 
@@ -41,7 +40,7 @@
 
 
 # env_plus
-- An experimental, way more powerful environment, *disabled by default*
+- An experimental, way more powerful environment
 
   (most) functions in this environment are limited in theese ways:
 
@@ -55,6 +54,7 @@
   Here is the stuff:
   ## minetest
     - **Some things may not be functions but values**
+    - `get_us_time = minetest.get_us_time`
     - `get_game_info = minetest.get_game_info() -- removes path from the output`
     - `is_singleplayer = minetest.is_singleplayer()`
     - `features = minetest.features`

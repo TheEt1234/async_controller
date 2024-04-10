@@ -7,17 +7,25 @@ local function burn_controller(pos)
 end
 
 local function overheat(pos)
-	if mesecon.do_overheat(pos) then -- This code is responsible for increasing the heat of the luacontroller AND checking if it's overheated, how elegant
+	if mesecon.do_overheat(pos) then
 		burn_controller(pos)
 		return true
 	end
 end
 
-local function remove_functions(x)
+
+
+local function remove_functions(x) -- called from async environment btw
+	local function is_bad(thing)
+		local tp = type(thing)
+		return tp == "userdata" or tp == "function"
+	end
+
 	-- also acts as a segfault prevention
 	-- since you cant serialize string.sub for example
-	local tp = type(x)
-	if tp == "function" then
+	-- also removes any userdata for that potential reason
+
+	if is_bad(x) then
 		return nil
 	end
 	-- Make sure to not serialize the same table multiple times, otherwise
@@ -32,7 +40,7 @@ local function remove_functions(x)
 		if type(x) ~= "table" then return end
 
 		for key, value in pairs(x) do
-			if type(key) == "function" or type(value) == "function" then
+			if is_bad(key) or is_bad(value) then
 				x[key] = nil
 			else
 				if type(key) == "table" then

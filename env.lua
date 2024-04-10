@@ -51,7 +51,7 @@ local function get_safe_print(pos, itbl)
 			function(ret)
 				local meta = ret.get_meta(ret.pos)
 				local oldtext = meta:get_string("print") or ""
-				local newtext = string.sub(oldtext .. "\n" .. ret.text_to_print, -100000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74
+				local newtext = string.sub(oldtext .. ret.text_to_print .. "\n", -100000, -1) -- https://github.com/mt-mods/mooncontroller/blob/master/controller.lua#L74
 				meta:set_string("print", newtext)
 			end, {
 			text_to_print = text_to_print,

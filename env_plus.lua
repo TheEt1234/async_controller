@@ -134,7 +134,9 @@ end
 local function do_sandbox_stuff(f, ...)
     -- THIS SHOULD NOT BE INCLUDED IN STUFF THAT ACCEPTS AND RUNS USER ARBITRARY FUNCTIONS/CODE
     -- (due to lack of string sandboxing, a user could get the unsafe version of string.rep for example, and kill the server)
-    return the_pcall_sandbox(escape_string_sandbox(limit_string_length(f), { ... }))
+    local limited_string_length = limit_string_length(f)
+    local pcall_sandboxed = the_pcall_sandbox(limited_string_length)
+    return escape_string_sandbox(pcall_sandboxed)
 end
 
 
@@ -144,7 +146,7 @@ function env_plus.get_env_plus(pos, mem, event, itbl, async_env, env)
         code = async_env.code,
 
         minetest = {
-            get_us_time = minetest.get_us_time, -- nothing really worrysome here
+            get_us_time = minetest.get_us_time, -- nothing really worrysome here, so no need to do_sandbox_stuff
             get_game_info = safe.get_game_info(),
             is_singleplayer = minetest.is_singleplayer(),
             features = minetest.features,

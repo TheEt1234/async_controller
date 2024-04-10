@@ -30,7 +30,7 @@ async_controller = {
 			hook_time = setting_or_default("async_controller.hook_time", 10),
 			modify_self_max_code_len = setting_or_default("async_controller.modify_self_max_code_len", 50000),
 			max_sandbox_mem_size = setting_or_default("async_controller.max_sandbox_mem_size", 50, math.huge),
-			env_plus = setting_or_default("async_controller.env_plus", false),
+			env_plus = setting_or_default("async_controller.env_plus", true),
 			debug_mode = false,
 		},
 	}
@@ -52,7 +52,7 @@ minetest.register_async_dofile(MP .. "/env_plus.lua")
 minetest.register_async_dofile(MP .. "/env.lua")
 minetest.register_async_dofile(MP .. "/sandbox.lua")
 dofile(MP .. "/misc.lua")
-dofile(MP .. "/frontend.lua")
+dofile(MP .. "/frontend.lua") -- both of theese don't talk with the async environment, well except remove_functions but whatever
 
 local function reset_meta(pos, code, errmsg)
 	local meta = minetest.get_meta(pos)
@@ -67,8 +67,8 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 		ram_usage = 0
 	}
 
-	-- we have to rfuncs mem here btw because minetest.serialize(string.sub) => S E G F A U L T (bad bad bad bad)
-	-- and minetest for some reason serializes everything that goes to/from the async environment..
+	-- we have to rfuncs mem here btw because minetest.serialize(string.sub) => crash
+	-- and minetest for some reason serializes everything that goes to/from the async environment (why why)
 
 	-- 'Last warning' label.
 	local warning = ""
@@ -77,13 +77,14 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 	end
 
 	local time = minetest.get_us_time
+	local rfuncs = async_env.remove_functions
 
 	local itbl = {}
 	local start_time = time()
 	local env = async_controller_async.create_environment(pos, mem, event, itbl, async_env, send_warning,
 		async_env.luacontroller_dynamic_values)
 	if not env then
-		return false, "Env does not exist. Controller has been moved?", async_env.remove_functions(mem), pos,
+		return false, "Env does not exist. Controller has been moved?", rfuncs(mem), pos,
 			itbl, { start_time, time() }
 	end
 
@@ -92,7 +93,7 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 
 	local f, msg = async_controller_async.create_sandbox(code, env, async_env, async_env.luacontroller_dynamic_values)
 	if not f then
-		return false, msg, async_env.remove_functions(env.mem), pos, itbl, { start_time, time() }
+		return false, msg, async_env.rfuncs(env.mem), pos, itbl, { start_time, time() }
 	end
 
 	-- Start string true sandboxing
@@ -107,7 +108,7 @@ local function run_async(pos, mem, event, code, async_env) -- this is the thing 
 	onetruestring.__index = string
 	-- End string true sandboxing
 
-	return success, msg or warning, async_env.remove_functions(env.mem), pos, itbl, { start_time, time() }
+	return success, msg or warning, rfuncs(env.mem), pos, itbl, { start_time, time() }
 end
 
 local function exec_itbl(itbl)

@@ -30,4 +30,4 @@ async_controller.modify_self_max_code_len (modify_self maximum code length) int 
 async_controller.max_sandbox_mem_size (How much memory can the sandbox consume before error'ing) int 50
 
 # enable env_plus, an !experimental! environment
-async_controller.env_plus (Enable env_plus ! experimental !) bool false
+async_controller.env_plus (Enable env_plus ! experimental !) bool true
