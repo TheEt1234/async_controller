@@ -31,8 +31,9 @@ async_controller = {
 			modify_self_max_code_len = setting_or_default("async_controller.modify_self_max_code_len", 50000),
 			max_sandbox_mem_size = setting_or_default("async_controller.max_sandbox_mem_size", 50, math.huge),
 			env_plus = setting_or_default("async_controller.env_plus", true),
-			debug_mode = false,
+			debug_mode = false,     -- console spammer
 		},
+		custom_callback = function() end, -- for use with other mods
 	}
 }
 
@@ -43,7 +44,7 @@ local function pass_down_to_async(thing, name)
 	end, function() end, thing, name)
 end
 
-pass_down_to_async(async_controller.env.settings, "settings") -- hopefully this works
+pass_down_to_async(async_controller.env.settings, "settings")
 
 local MP = minetest.get_modpath("async_controller")
 
@@ -51,8 +52,9 @@ minetest.register_async_dofile(MP .. "/async_init.lua")
 minetest.register_async_dofile(MP .. "/env_plus.lua")
 minetest.register_async_dofile(MP .. "/env.lua")
 minetest.register_async_dofile(MP .. "/sandbox.lua")
-dofile(MP .. "/misc.lua")
-dofile(MP .. "/frontend.lua") -- both of theese don't talk with the async environment, well except remove_functions but whatever
+dofile(MP .. "/misc.lua") -- both of theese don't talk with the async environment, well except remove_functions but whatever
+dofile(MP .. "/frontend.lua")
+
 
 local function reset_meta(pos, code, errmsg)
 	local meta = minetest.get_meta(pos)
@@ -200,6 +202,8 @@ local function run_callback(ok, errmsg, mem, pos, itbl, time) -- this is the thi
 			", time took: " ..
 			time_took / 1000 .. "ms + <sync> callback took " .. (minetest.get_us_time() - callback_time) / 1000 .. "ms")
 	end
+
+	async_controller.env.custom_callback(ok, errmsg, mem, pos, itbl, time)
 end
 
 
