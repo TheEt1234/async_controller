@@ -160,7 +160,7 @@ local function get_digiline_send(pos, itbl, send_warning, luac_id)
 		--        or via anything that could.
 		-- Make sure channel is string, number or boolean
 		if type(channel) == "string" then
-			if #channel > async_controller_async.settings.chan_maxlen then
+			if #channel > async_controller_async.settings.channel_maxlen then
 				send_warning("Channel string too long.")
 				return false
 			end
@@ -171,7 +171,7 @@ local function get_digiline_send(pos, itbl, send_warning, luac_id)
 
 		local msg_cost
 		msg, msg_cost = clean_and_weigh_digiline_message(msg, nil)
-		if msg == nil or msg_cost > async_controller_async.settings.maxlen then
+		if msg == nil or msg_cost > async_controller_async.settings.message_maxlen then
 			send_warning("Message was too complex, or contained invalid data.")
 			return false
 		end
@@ -229,6 +229,7 @@ local function create_environment(pos, mem, event, itbl, async_env, send_warning
 			sub = string.sub,
 			find = safe_string_find,
 			split = safe_string_split,
+			trim = string.trim -- added
 		},
 		math = {
 			abs = math.abs,
@@ -260,6 +261,12 @@ local function create_environment(pos, mem, event, itbl, async_env, send_warning
 			sqrt = math.sqrt,
 			tan = math.tan,
 			tanh = math.tanh,
+			hypot = math.hypot, -- added
+			sign = math.sign,  -- added
+			factorial = math.factorial, -- added
+			round = math.round, -- added
+
+
 		},
 		table = {
 			concat = table.concat,

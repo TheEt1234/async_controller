@@ -98,7 +98,8 @@ function safe.pcall(f1, ...)
     return unpack(pcall_stuffs)
 end
 
-function safe.get_loadstring(env)
+function safe.get_loadstring(env) -- INTENTIONALLY DOESN'T ALLOW CHUNKNAMES, see https://www.lua-users.org/wiki/SandBoxes
+    -- and just does all the checks a normal execution would do, so i don't see a problem, if there is a problem with this, there is most likely a problem with the sandbox.lua too
     return function(code)
         assert(type(code) == "string", "The code should be string last time i checked")
         assert(#code < HARDCODED_SANE_STRING_LENGTH, "code too long")
@@ -130,6 +131,10 @@ function safe.get_vector()
     vector_funcs.metatable = nil
     return vector_funcs
 end
+
+-- what things *probably (can change)* won't be coming
+-- coroutines - They are not possible to serialize in minetest, so kinda defeating the main use they'd have in a luacontroller i feel like
+-- metatables - They allow user code to run where it shouldn't (like in string sandbox escaped functions), this could be possible to fix with some major changes
 
 local function do_sandbox_stuff(f, ...)
     -- THIS SHOULD NOT BE INCLUDED IN STUFF THAT ACCEPTS AND RUNS USER ARBITRARY FUNCTIONS/CODE
