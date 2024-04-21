@@ -286,11 +286,48 @@ local selection_box = {
 	fixed = { -8 / 16, -8 / 16, -8 / 16, 8 / 16, -5 / 16, 8 / 16 },
 }
 
+local function clean_and_weigh_digiline_message(msg, back_references) -- duplicated code, deal with it
+	local t = type(msg)
+	if t == "string" then
+		return msg, #msg + 25
+	elseif t == "number" and msg == msg then
+		-- Doesn't let NaN thru, this was done because like...
+		-- nobody checks for nan, and that can lead to pretty funny behaviour, see https://github.com/BuckarooBanzay/digibuilder/issues/20 and
+
+		return msg, 8
+	elseif t == "boolean" then
+		return msg, 1
+	elseif t == "table" then
+		back_references = back_references or {}
+		local bref = back_references[msg]
+		if bref then
+			return bref, 0
+		end
+		local cost = 8
+		local ret = {}
+		back_references[msg] = ret
+		for k, v in pairs(msg) do
+			local k_cost, v_cost
+			k, k_cost = clean_and_weigh_digiline_message(k, back_references)
+			v, v_cost = clean_and_weigh_digiline_message(v, back_references)
+			if k ~= nil and v ~= nil then
+				-- Only include an element if its key and value are of legal
+				-- types.
+				ret[k] = v
+			end
+			cost = cost + k_cost + v_cost
+		end
+		return ret, cost
+	else
+		return nil, 0
+	end
+end
+
 local digiline = {
 	receptor = {},
 	effector = {
 		action = function(pos, _, channel, msg)
-			msg = async_controller.env.clean_and_weigh_digiline_message(msg, nil)
+			msg = clean_and_weigh_digiline_message(msg)
 			run(pos, { type = "digiline", channel = channel, msg = msg })
 		end
 	}
